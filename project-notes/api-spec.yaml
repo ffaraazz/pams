@@ -1,0 +1,2349 @@
+openapi: 3.1.0
+info:
+  title: Project Allocation Management System (PAMS) API
+  version: 1.4.0
+  description: |
+    REST API for the Project Allocation Management System.
+    All endpoints require a Keycloak-issued OIDC Bearer token unless stated otherwise.
+    Obtain tokens via the Keycloak Authorization Code flow at the configured realm (`/realms/pams`).
+    Dates use ISO 8601 `YYYY-MM-DD` format. Timestamps use UTC (`YYYY-MM-DDTHH:MM:SSZ`).
+
+    **Pagination (NFR-18/19):** All list endpoints support `page` (default 1) and `limit` (default 10, max 100).
+    **Single-endpoint strategy (NFR-20):** Each resource has one list endpoint that also supports search and filter via query parameters.
+    **Role-based response shaping (NFR-21):** Responses are filtered server-side based on the authenticated user's role.
+    **Consolidated REST design:** Deactivation is handled via PUT (state change), allocation stop via PATCH, allocation remove via DELETE (soft-delete).
+    **Billable flag & project status:** Projects carry a `billable` boolean (defaults to true for Client accounts) and a lifecycle `status` (Upcoming → Active → Completed). Both HR and PM (scoped to own projects) can modify status.
+    **Code-based identifiers:** Path parameters use unique business codes (`accountCode`, `projectCode`, `empCode`) instead of UUIDs for human-readable URLs. Allocations and skills use UUID (no natural business code). Responses include both UUIDs and codes.
+  contact:
+    name: PAMS Engineering
+  license:
+    name: Internal Use Only
+
+servers:
+  - url: https://api.pams.internal/api/v1
+    description: Production
+  - url: https://localhost:5001/api/v1
+    description: Local Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Accounts
+    description: Account management (HR only)
+  - name: Projects
+    description: Project management (HR only)
+  - name: Employees
+    description: Employee management, search, and filter (single-endpoint strategy)
+  - name: Skills
+    description: Skill master data
+  - name: Allocations
+    description: Allocation lifecycle management
+  - name: Dashboard
+    description: Project View and Employee View dashboards
+  - name: ProjectTeamMembers
+    description: "Project-scoped Team Lead / reportee configuration (FR-020)"
+  - name: SystemConfig
+    description: System configuration (HR only)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────────────────────────────────────
+paths:
+  # ── AUTH ───────────────────────────────────────────────────────────────────
+  # Authentication is handled entirely by Keycloak (Authorization Code / Client Credentials flow).
+  # PAMS exposes no login endpoint. Clients obtain tokens directly from Keycloak and pass them
+  # as Bearer tokens. PAMS validates tokens via Keycloak JWKS auto-discovery.
+  # The authenticated user's profile is available via GET /employees/me (no separate /auth/me).
+
+  # ── ACCOUNTS ───────────────────────────────────────────────────────────────
+
+  /accounts:
+    get:
+      tags: [Accounts]
+      summary: List accounts
+      operationId: accounts_list
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by account code or name (partial match, case-insensitive).
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+          description: Filter by active status. Omit to return all.
+        - name: accountType
+          in: query
+          schema:
+            $ref: "#/components/schemas/AccountType"
+      responses:
+        "200":
+          description: Paginated list of accounts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse_AccountSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    post:
+      tags: [Accounts]
+      summary: Create a new account (HR only)
+      operationId: accounts_create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountRequest"
+            example:
+              accountCode: ACC-ACME
+              accountName: Acme Corporation
+              accountType: Client
+      responses:
+        "201":
+          description: Account created
+          headers:
+            Location:
+              schema:
+                type: string
+              example: /api/v1/accounts/ACC-ACME
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Account code already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_ACCOUNT_CODE_EXISTS"
+                title: Conflict
+                status: 409
+                detail: "Account code 'ACC-ACME' is already in use."
+
+  /accounts/{accountCode}:
+    parameters:
+      - $ref: "#/components/parameters/AccountCode"
+
+    get:
+      tags: [Accounts]
+      summary: Get account by code
+      operationId: accounts_getByCode
+      responses:
+        "200":
+          description: Account detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Accounts]
+      summary: Update account (HR only). Account code is immutable. Set isActive=false to deactivate.
+      operationId: accounts_update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountRequest"
+      responses:
+        "200":
+          description: Account updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: "Account has active projects and cannot be deactivated"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_ACCOUNT_HAS_ACTIVE_PROJECTS"
+                title: Unprocessable Entity
+                status: 422
+                detail: "Account has 3 active project(s). Deactivate or complete them before deactivating the account."
+
+  # ── PROJECTS ───────────────────────────────────────────────────────────────
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List projects
+      operationId: projects_list
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by project code or name (partial match, case-insensitive).
+        - name: accountCode
+          in: query
+          schema:
+            type: string
+          description: Filter by account code.
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ProjectStatus"
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: billable
+          in: query
+          schema:
+            type: boolean
+          description: Filter by billable flag.
+        - name: projectManagerEmpCode
+          in: query
+          schema:
+            type: string
+          description: Filter projects where specified employee is PM. Use with current user's empCode to get "my projects".
+      responses:
+        "200":
+          description: Paginated list of projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse_ProjectSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [Projects]
+      summary: Create a new project (HR only)
+      operationId: projects_create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+            example:
+              projectCode: PROJ-ALPHA
+              projectName: Project Alpha
+              accountCode: ACC-ACME
+              projectManagerEmpCode: EMP001
+              billable: true
+              startDate: "2026-03-01"
+              endDate: "2026-12-31"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Project code already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /projects/{projectCode}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectCode"
+
+    get:
+      tags: [Projects]
+      summary: Get project by code
+      operationId: projects_getByCode
+      responses:
+        "200":
+          description: Project detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Projects]
+      summary: Update project (HR or PM — PM scoped to own projects). Project code is immutable. Set isActive=false to deactivate.
+      operationId: projects_update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectRequest"
+      responses:
+        "200":
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── PROJECT TEAM MEMBERS (FR-020) ─────────────────────────────────────────
+
+  /projects/{projectCode}/team-members:
+    parameters:
+      - $ref: "#/components/parameters/ProjectCode"
+
+    get:
+      tags: [ProjectTeamMembers]
+      summary: List team-lead / reportee assignments for a project (HR, PM)
+      description: |
+        Returns all project-scoped Team Lead → Reportee mappings for the given project.
+        HR sees all projects. PM sees only projects they manage.
+      operationId: projectTeamMembers_list
+      responses:
+        "200":
+          description: Team member assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProjectTeamMemberResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      tags: [ProjectTeamMembers]
+      summary: Add a team-lead / reportee assignment (HR, PM)
+      description: |
+        Assigns a reportee to a Team Lead within this project.
+        PM can configure only their own projects. HR can configure any project.
+        Circular same-project reporting (A leads B and B leads A) is blocked.
+        The composite key is (projectCode, teamLeadEmpCode, reporteeEmpCode).
+        teamLeadEmpCode must differ from reporteeEmpCode.
+      operationId: projectTeamMembers_add
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddProjectTeamMemberRequest"
+            example:
+              teamLeadEmpCode: EMP010
+              reporteeEmpCode: EMP042
+      responses:
+        "201":
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectTeamMemberResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Duplicate assignment or circular reporting detected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_DUPLICATE_TEAM_MEMBER"
+                title: Conflict
+                status: 409
+                detail: "This team-lead / reportee assignment already exists for this project."
+        "422":
+          description: Circular same-project reporting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_CIRCULAR_TEAM_LEAD"
+                title: Unprocessable Entity
+                status: 422
+                detail: "Circular reporting detected: the reportee is already a Team Lead of the specified team lead on this project."
+
+  /projects/{projectCode}/team-members/{teamLeadEmpCode}/{reporteeEmpCode}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectCode"
+      - name: teamLeadEmpCode
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Employee code of the Team Lead.
+      - name: reporteeEmpCode
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Employee code of the reportee.
+
+    delete:
+      tags: [ProjectTeamMembers]
+      summary: Remove a team-lead / reportee assignment (HR, PM)
+      description: |
+        Removes the project-scoped Team Lead → Reportee mapping.
+        Does not affect any allocation records.
+        PM can only remove from their own projects. HR can remove from any project.
+      operationId: projectTeamMembers_remove
+      responses:
+        "204":
+          description: Assignment removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── EMPLOYEES ──────────────────────────────────────────────────────────────
+
+  /employees:
+    get:
+      tags: [Employees]
+      summary: List, search, and filter employees (HR, PM)
+      description: |
+        Unified endpoint for listing, searching, and filtering employees (NFR-20).
+        Supports text search (name, empCode, skill), role filter, active status filter,
+        bench-only filter, and date window for availability computation.
+        When searching by skill, bench employees (0% allocated) are returned first.
+      operationId: employees_list
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: search
+          in: query
+          schema:
+            type: string
+            minLength: 2
+          description: "Search query. Matches against full name (partial), empCode (prefix), or skill name (exact). Minimum 2 characters when provided."
+          example: Android
+        - name: role
+          in: query
+          schema:
+            $ref: "#/components/schemas/EmployeeRole"
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: benchOnly
+          in: query
+          schema:
+            type: boolean
+          description: Return only employees with 0% allocation for the given date window.
+        - name: windowFrom
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Start of availability window (default: today)."
+        - name: windowTo
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "End of availability window (default: today)."
+      responses:
+        "200":
+          description: Paginated list of employees
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse_EmployeeSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    post:
+      tags: [Employees]
+      summary: Create a new employee (HR only)
+      operationId: employees_create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeRequest"
+            example:
+              empCode: EMP042
+              firstName: Jordan
+              lastName: Lee
+              email: jordan.lee@example.com
+              designation: Senior Developer
+              role: Staff
+              reportsToEmpCode: EMP001
+              skillIds:
+                - c1d2e3f4-a5b6-7890-abcd-ef1234567890
+                - d1e2f3a4-b5c6-7890-abcd-ef1234567890
+      responses:
+        "201":
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeDetailResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: empCode or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_EMPCODE_EXISTS"
+                title: Conflict
+                status: 409
+                detail: "Employee code 'EMP042' is already in use."
+        "422":
+          description: Circular reporting chain detected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_CIRCULAR_REPORTING"
+                title: Unprocessable Entity
+                status: 422
+                detail: Setting this reportsTo would create a circular reporting chain.
+
+  /employees/{empCode}:
+    parameters:
+      - $ref: "#/components/parameters/EmpCode"
+
+    get:
+      tags: [Employees]
+      summary: Get employee by code with allocation details
+      description: |
+        Returns employee detail with current allocation status.
+        By default, only active and upcoming allocations are included in `currentAllocations`.
+        Use `includeEnded=true` to include past allocations. `includeRemoved=true` (HR only) includes soft-deleted allocations.
+      operationId: employees_getByCode
+      parameters:
+        - name: windowFrom
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Start of availability window (default: today)."
+        - name: windowTo
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "End of availability window (default: today)."
+        - name: includeEnded
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include ended (past) allocations in currentAllocations array.
+        - name: includeRemoved
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: HR only. Include soft-deleted allocations in currentAllocations array.
+      responses:
+        "200":
+          description: Employee detail with current allocation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeDetailResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Employees]
+      summary: Update employee (HR only). empCode is immutable. Set isActive=false to deactivate.
+      operationId: employees_update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeRequest"
+      responses:
+        "200":
+          description: Employee updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeDetailResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: Circular reporting chain
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /employees/me:
+    get:
+      tags: [Employees]
+      summary: Get authenticated user's own profile (all roles)
+      description: |
+        Returns the full employee detail for the currently authenticated user.
+        Replaces the former `/auth/me` endpoint. Uses the employee ID from the Keycloak token `sub` claim.
+      operationId: employees_me
+      parameters:
+        - name: windowFrom
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Start of availability window (default: today)."
+        - name: windowTo
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "End of availability window (default: today)."
+      responses:
+        "200":
+          description: Authenticated user's full employee profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeDetailResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /employees/me/allocations:
+    get:
+      tags: [Employees]
+      summary: Get own allocations, optionally with team data (all roles – Staff access, FR-022)
+      description: |
+        Returns the authenticated user's own allocations.
+        For Project Managers: set `includeTeam=true` to also receive a `myTeam` array
+        containing reportee allocations grouped by project (for projects where the PM
+        is configured as a Team Lead via project_team_members).
+        This replaces the need for a separate PM Allocation Dashboard endpoint.
+      operationId: employees_me_allocations
+      parameters:
+        - name: includeEnded
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include ended (past) allocations.
+        - name: includeTeam
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: "PM only. When true, includes a `myTeam` array with reportees' allocations grouped by project (FR-022). Ignored for non-PM roles."
+      responses:
+        "200":
+          description: |
+            Authenticated user's allocations. When `includeTeam=true` for a PM, response
+            uses `PMAllocationDashboardResponse` shape; otherwise returns a plain allocation array.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Default response (includeTeam=false or non-PM)
+                    properties:
+                      allocations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AllocationDetailResponse"
+                  - $ref: "#/components/schemas/PMAllocationDashboardResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /employees/me/team/allocations:
+    get:
+      tags: [Employees]
+      summary: Get project-scoped reportees' allocations (Staff / PM with team lead assignments)
+      description: |
+        Returns allocations grouped by project for each project where the authenticated user
+        is configured as a Team Lead (via project_team_members). Each group contains only
+        the reportees assigned to the user on that specific project.
+        If the user has no team lead assignments, returns an empty array.
+      operationId: employees_me_team_allocations
+      responses:
+        "200":
+          description: Read-only allocation list for each reportee grouped by project
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProjectTeamAllocationsGrouped"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── EMPLOYEE SELF-MANAGE SKILLS (FR-023 – MVP2) ───────────────────────────
+
+  /employees/me/skills:
+    get:
+      tags: [Employees]
+      summary: Get own skills (Staff, PM – MVP2)
+      description: |
+        Returns the authenticated employee's current skill tags.
+        MVP2 feature — returns 501 Not Implemented until MVP2 feature flag is enabled.
+      operationId: employees_me_skills_list
+      responses:
+        "200":
+          description: Skill list for the authenticated employee
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SkillResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          description: MVP2 feature not yet enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_FEATURE_NOT_AVAILABLE"
+                title: Not Implemented
+                status: 501
+                detail: "Self-manage skills is an MVP2 feature and is not yet enabled."
+
+    post:
+      tags: [Employees]
+      summary: Add a skill to own profile (Staff, PM – MVP2)
+      description: |
+        Adds an existing master skill to the authenticated employee's profile.
+        Only active skills from the HR-managed master skill list can be added.
+        Duplicate additions are silently ignored.
+        MVP2 feature — returns 501 until MVP2 feature flag is enabled.
+      operationId: employees_me_skills_add
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManageOwnSkillRequest"
+            example:
+              skillId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+      responses:
+        "200":
+          description: Skill added (or already present). Returns the updated full skill list for the employee.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SkillResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: Skill is inactive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_SKILL_INACTIVE"
+                title: Unprocessable Entity
+                status: 422
+                detail: "This skill is no longer active and cannot be added."
+        "501":
+          description: MVP2 feature not yet enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /employees/me/skills/{skillId}:
+    parameters:
+      - name: skillId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    delete:
+      tags: [Employees]
+      summary: Remove a skill from own profile (Staff, PM – MVP2)
+      description: |
+        Removes the specified skill tag from the authenticated employee's profile.
+        Does not affect any allocation records.
+        MVP2 feature — returns 501 until MVP2 feature flag is enabled.
+      operationId: employees_me_skills_remove
+      responses:
+        "204":
+          description: Skill removed from profile
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          description: MVP2 feature not yet enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  # ── SKILLS ─────────────────────────────────────────────────────────────────
+
+  /skills:
+    get:
+      tags: [Skills]
+      summary: List all active skills
+      operationId: skills_list
+      parameters:
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Skill list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SkillResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [Skills]
+      summary: Create a skill (HR only)
+      operationId: skills_create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSkillRequest"
+      responses:
+        "201":
+          description: Skill created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Skill name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /skills/{skillId}:
+    parameters:
+      - name: skillId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags: [Skills]
+      summary: Update skill name or active status (HR only)
+      operationId: skills_update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSkillRequest"
+      responses:
+        "200":
+          description: Skill updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── ALLOCATIONS ────────────────────────────────────────────────────────────
+
+  /allocations:
+    post:
+      tags: [Allocations]
+      summary: Create a new allocation (HR, PM)
+      description: |
+        HR can allocate to any active project.
+        PM can only allocate to projects they manage.
+        Allocation % must be ≥ minAllocationPct (default 25) and a multiple of allocationIncrement (default 5).
+        Total overlapping allocations for the employee must not exceed 100%.
+      operationId: allocations_create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAllocationRequest"
+            example:
+              empCode: EMP042
+              projectCode: PROJ-ALPHA
+              fromDate: "2026-03-01"
+              toDate: "2026-06-30"
+              percentage: 50
+      responses:
+        "201":
+          description: Allocation created
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllocationDetailResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Forbidden (caller is PM but does not manage target project)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_NOT_PROJECT_OWNER"
+                title: Forbidden
+                status: 403
+                detail: You are not the Project Manager of this project.
+        "422":
+          description: Capacity exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapacityExceededProblem"
+              example:
+                type: "https://pams.internal/errors/ERR_CAPACITY_EXCEEDED"
+                title: Capacity Exceeded
+                status: 422
+                detail: "Employee EMP042 is already 75% allocated from 2026-03-01. Available: 25%."
+                extensions:
+                  empCode: EMP042
+                  conflictFrom: "2026-03-01"
+                  currentTotal: 75
+                  requested: 50
+                  available: 25
+
+  /allocations/{allocationId}:
+    parameters:
+      - $ref: "#/components/parameters/AllocationId"
+
+    get:
+      tags: [Allocations]
+      summary: Get allocation by ID
+      operationId: allocations_getById
+      responses:
+        "200":
+          description: Allocation detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllocationDetailResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Allocations]
+      summary: Update allocation percentage or date range (HR, PM)
+      description: |
+        PM can only update allocations on their own projects.
+        All capacity rules apply (excluding the current allocation from the check).
+        Cannot edit ended allocations.
+      operationId: allocations_update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAllocationRequest"
+      responses:
+        "200":
+          description: Allocation updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllocationDetailResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: Capacity exceeded or allocation already ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+    patch:
+      tags: [Allocations]
+      summary: Stop an allocation (HR, PM)
+      description: |
+        Stops an active or upcoming allocation.
+        If allocation has not yet started (fromDate > today): sets toDate = today.
+        If allocation is active (fromDate ≤ today): sets toDate = tomorrow.
+        PM can only stop allocations on their own projects.
+        Request body: `{"action": "stop"}`.
+      operationId: allocations_stop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [stop]
+            example:
+              action: stop
+      responses:
+        "200":
+          description: Allocation stopped. Returns updated allocation with new toDate.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllocationDetailResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: Allocation already ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_ALLOCATION_ALREADY_ENDED"
+                title: Unprocessable Entity
+                status: 422
+                detail: This allocation has already ended.
+
+    delete:
+      tags: [Allocations]
+      summary: Soft-delete a past allocation (HR, PM)
+      description: |
+        Only ended allocations (toDate < today) can be removed.
+        Sets deletedAt timestamp. Record is hidden from default views.
+        HR can see removed allocations via includeRemoved=true on list endpoints.
+      operationId: allocations_remove
+      responses:
+        "200":
+          description: Allocation removed (soft-deleted)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllocationDetailResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: Cannot remove active or future allocation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_ALLOCATION_NOT_ENDED"
+                title: Unprocessable Entity
+                status: 422
+                detail: Only ended allocations can be removed.
+
+  /allocations/capacity-check:
+    get:
+      tags: [Allocations]
+      summary: Check allocation capacity for an employee in a date window
+      description: Returns the current total allocated % and available % for the employee in the specified window.
+      operationId: allocations_capacityCheck
+      parameters:
+        - name: empCode
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Employee code to check capacity for.
+        - name: fromDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Null for open-ended check.
+        - name: excludeAllocationId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Exclude this allocation ID when checking (used during edit).
+      responses:
+        "200":
+          description: Capacity information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapacityCheckResponse"
+              example:
+                empCode: EMP042
+                windowFrom: "2026-03-01"
+                windowTo: "2026-06-30"
+                currentTotalPercentage: 50
+                availablePercentage: 50
+                allocationStatus: Partial
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── DASHBOARD ──────────────────────────────────────────────────────────────
+
+  /dashboard/project-view:
+    get:
+      tags: [Dashboard]
+      summary: Project View – all projects with their allocations (HR, PM)
+      description: |
+        HR sees all active projects.
+        PM sees only projects where they are the assigned project manager.
+        Projects are grouped by account.
+      operationId: dashboard_projectView
+      parameters:
+        - name: fromDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Filter allocations from this date (default: today)."
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Filter allocations to this date (default: open)."
+        - name: includeEnded
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include ended allocations in the allocation tables.
+        - name: accountCode
+          in: query
+          schema:
+            type: string
+          description: Filter by account code.
+      responses:
+        "200":
+          description: Project view dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectViewResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /dashboard/employee-view:
+    get:
+      tags: [Dashboard]
+      summary: Employee View – all employees with their allocations (HR, PM)
+      description: |
+        HR and PM see all active employees with their allocation lists.
+        PM can edit/stop/remove only allocations on their own projects.
+        Supports search and filter inline.
+      operationId: dashboard_employeeView
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search by name, empCode, or skill.
+        - name: benchOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: windowFrom
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: windowTo
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: includeEnded
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Employee view dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeViewResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ── SYSTEM CONFIG ──────────────────────────────────────────────────────────
+
+  /system-config:
+    get:
+      tags: [SystemConfig]
+      summary: Get current system configuration (HR only)
+      operationId: systemConfig_get
+      responses:
+        "200":
+          description: System configuration values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemConfigResponse"
+              example:
+                minAllocationPct: 25
+                allocationIncrement: 5
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    put:
+      tags: [SystemConfig]
+      summary: Update system configuration (HR only)
+      operationId: systemConfig_update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSystemConfigRequest"
+            example:
+              minAllocationPct: 25
+              allocationIncrement: 5
+      responses:
+        "200":
+          description: Configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemConfigResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          description: Validation rule violation (e.g. minPct not multiple of increment)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "https://pams.internal/errors/ERR_CONFIG_INVALID"
+                title: Unprocessable Entity
+                status: 422
+                detail: "Minimum allocation percentage (25) must be a multiple of the increment (10)."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPONENTS
+# ─────────────────────────────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        OIDC Bearer token issued by Keycloak (RS256 signed).
+        Obtain via Keycloak Authorization Code flow: `{Authority}/protocol/openid-connect/auth`
+        or Client Credentials flow for machine-to-machine.
+        Default realm: `https://keycloak.internal/realms/pams`.
+
+  # ── PARAMETERS ─────────────────────────────────────────────────────────────
+  parameters:
+    AccountCode:
+      name: accountCode
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 50
+      example: ACC-ACME
+
+    ProjectCode:
+      name: projectCode
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 50
+      example: PROJ-ALPHA
+
+    EmpCode:
+      name: empCode
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 50
+      example: EMP042
+
+    AllocationId:
+      name: allocationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: "Number of items per page (default: 10, max: 100). Per NFR-18."
+
+  # ── RESPONSES ──────────────────────────────────────────────────────────────
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          example:
+            type: "https://pams.internal/errors/ERR_UNAUTHORIZED"
+            title: Unauthorized
+            status: 401
+            detail: Authentication token is missing or invalid.
+
+    Forbidden:
+      description: Insufficient permissions for this operation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          example:
+            type: "https://pams.internal/errors/ERR_FORBIDDEN"
+            title: Forbidden
+            status: 403
+            detail: You do not have permission to perform this action.
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          example:
+            type: "https://pams.internal/errors/ERR_NOT_FOUND"
+            title: Not Found
+            status: 404
+            detail: The requested resource was not found.
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationProblemDetails"
+          example:
+            type: "https://pams.internal/errors/ERR_VALIDATION"
+            title: Validation Failed
+            status: 400
+            errors:
+              Percentage:
+                - Percentage must be at least 25%.
+                - Percentage must be a multiple of 5%.
+
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+
+  # ── SCHEMAS ────────────────────────────────────────────────────────────────
+  schemas:
+    # ── Enums ──────────────────────────────────────────────────────────────
+
+    AccountType:
+      type: string
+      enum: [Client, Internal, Bench]
+      description: Type of account.
+
+    EmployeeRole:
+      type: string
+      enum: [HR, ProjectManager, Staff]
+      description: Role of the employee within the system.
+
+    ProjectStatus:
+      type: string
+      enum: [Upcoming, Active, Completed]
+      description: |
+        Upcoming = project created but not yet started.
+        Active = work in progress.
+        Completed = all work finished.
+
+    AllocationStatus:
+      type: string
+      enum: [Bench, Partial, Full]
+      description: |
+        Bench = 0% allocated in the window.
+        Partial = >0% and <100% allocated.
+        Full = 100% allocated on at least one day in the window.
+
+    AllocationRecordStatus:
+      type: string
+      enum: [Active, Upcoming, Ended]
+      description: |
+        Active = fromDate ≤ today ≤ toDate (or toDate is null).
+        Upcoming = fromDate > today.
+        Ended = toDate < today.
+
+    # ── Problem Details ────────────────────────────────────────────────────
+
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        traceId:
+          type: string
+
+    ValidationProblemDetails:
+      allOf:
+        - $ref: "#/components/schemas/ProblemDetails"
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+              description: Field-level validation errors keyed by property name.
+
+    CapacityExceededProblem:
+      allOf:
+        - $ref: "#/components/schemas/ProblemDetails"
+        - type: object
+          properties:
+            extensions:
+              type: object
+              properties:
+                empCode:
+                  type: string
+                conflictFrom:
+                  type: string
+                  format: date
+                currentTotal:
+                  type: integer
+                requested:
+                  type: integer
+                available:
+                  type: integer
+
+    # ── Pagination ─────────────────────────────────────────────────────────
+
+    PaginationMeta:
+      type: object
+      description: "Standard pagination metadata per NFR-18."
+      properties:
+        page:
+          type: integer
+          examples: [1]
+        limit:
+          type: integer
+          examples: [10]
+        totalRecords:
+          type: integer
+          examples: [125]
+        totalPages:
+          type: integer
+          examples: [13]
+
+    # ── Auth ───────────────────────────────────────────────────────────────
+    # Login/logout handled by Keycloak directly. No LoginRequest/LoginResponse schemas needed.
+    # Authenticated user profile is returned via GET /employees/me (EmployeeDetailResponse).
+    # CurrentUserResponse is kept for lightweight "who am I" contexts where full detail is not needed.
+
+    CurrentUserResponse:
+      type: object
+      properties:
+        employeeId:
+          type: string
+          format: uuid
+        empCode:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/EmployeeRole"
+        designation:
+          type: string
+
+    # ── Account ────────────────────────────────────────────────────────────
+
+    AccountSummary:
+      type: object
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        accountCode:
+          type: string
+        accountName:
+          type: string
+        accountType:
+          $ref: "#/components/schemas/AccountType"
+        isActive:
+          type: boolean
+        totalActiveProjects:
+          type: integer
+          description: "Computed: count of active projects under this account."
+          examples: [3]
+        totalInactiveProjects:
+          type: integer
+          description: "Computed: count of inactive/completed projects under this account."
+          examples: [1]
+        totalActiveEmployees:
+          type: integer
+          description: "Computed: count of distinct active employees with current allocations on this account's projects."
+          examples: [12]
+        totalInactiveEmployees:
+          type: integer
+          description: "Computed: count of distinct inactive employees who had allocations on this account's projects."
+          examples: [2]
+
+    AccountResponse:
+      allOf:
+        - $ref: "#/components/schemas/AccountSummary"
+        - type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    CreateAccountRequest:
+      type: object
+      required: [accountCode, accountName, accountType]
+      properties:
+        accountCode:
+          type: string
+          maxLength: 50
+          examples: [ACC-ACME]
+        accountName:
+          type: string
+          maxLength: 150
+          examples: [Acme Corporation]
+        accountType:
+          $ref: "#/components/schemas/AccountType"
+
+    UpdateAccountRequest:
+      type: object
+      required: [accountName, accountType]
+      properties:
+        accountName:
+          type: string
+          maxLength: 150
+        accountType:
+          $ref: "#/components/schemas/AccountType"
+        isActive:
+          type: boolean
+          description: "Set to false to deactivate. Server returns 422 if account has active projects."
+
+    PagedResponse_AccountSummary:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountSummary"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    # ── Project ────────────────────────────────────────────────────────────
+
+    ProjectSummary:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        projectCode:
+          type: string
+        projectName:
+          type: string
+        accountId:
+          type: string
+          format: uuid
+        accountCode:
+          type: string
+        accountName:
+          type: string
+        projectManagerId:
+          type: ["string", "null"]
+          format: uuid
+        projectManagerEmpCode:
+          type: ["string", "null"]
+        projectManagerName:
+          type: ["string", "null"]
+        status:
+          $ref: "#/components/schemas/ProjectStatus"
+        billable:
+          type: boolean
+          description: Whether the project is billable. Defaults to true for client accounts.
+        isActive:
+          type: boolean
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+
+    ProjectResponse:
+      allOf:
+        - $ref: "#/components/schemas/ProjectSummary"
+        - type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    CreateProjectRequest:
+      type: object
+      required: [projectCode, projectName, accountCode, startDate]
+      properties:
+        projectCode:
+          type: string
+          maxLength: 50
+        projectName:
+          type: string
+          maxLength: 150
+        accountCode:
+          type: string
+          maxLength: 50
+          description: Account code (must exist and be active).
+        projectManagerEmpCode:
+          type: ["string", "null"]
+          maxLength: 50
+          description: Employee code of the PM (must be an active employee with ProjectManager role).
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+        billable:
+          type: boolean
+          description: |
+            Whether the project is billable.
+            Defaults to true when the linked account's type is 'Client'; false otherwise.
+            HR can override during creation.
+
+    UpdateProjectRequest:
+      type: object
+      required: [projectName, startDate, status, billable]
+      properties:
+        projectName:
+          type: string
+          maxLength: 150
+        projectManagerEmpCode:
+          type: ["string", "null"]
+          maxLength: 50
+          description: Employee code of the PM.
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+        status:
+          $ref: "#/components/schemas/ProjectStatus"
+        billable:
+          type: boolean
+          description: Whether the project is billable.
+        isActive:
+          type: boolean
+          description: Set to false to deactivate the project.
+
+    PagedResponse_ProjectSummary:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectSummary"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    # ── Employee ───────────────────────────────────────────────────────────
+
+    EmployeeSummary:
+      type: object
+      properties:
+        employeeId:
+          type: string
+          format: uuid
+        empCode:
+          type: string
+        fullName:
+          type: string
+        designation:
+          type: string
+        role:
+          $ref: "#/components/schemas/EmployeeRole"
+        isActive:
+          type: boolean
+        availabilityPercentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 100% minus the maximum daily allocated % for the queried window.
+        allocationStatus:
+          $ref: "#/components/schemas/AllocationStatus"
+        skills:
+          type: array
+          items:
+            type: string
+          description: Skill names (not IDs) for display.
+
+    EmployeeDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/EmployeeSummary"
+        - type: object
+          properties:
+            email:
+              type: string
+              format: email
+            reportsToId:
+              type: ["string", "null"]
+              format: uuid
+            reportsToEmpCode:
+              type: ["string", "null"]
+            reportsToName:
+              type: ["string", "null"]
+            skillDetails:
+              type: array
+              items:
+                $ref: "#/components/schemas/SkillResponse"
+            currentAllocations:
+              type: array
+              items:
+                $ref: "#/components/schemas/AllocationDetailResponse"
+              description: Active and upcoming allocations.
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    PagedResponse_EmployeeSummary:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmployeeSummary"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    CreateEmployeeRequest:
+      type: object
+      required: [empCode, firstName, lastName, email, designation, role]
+      properties:
+        empCode:
+          type: string
+          maxLength: 50
+        firstName:
+          type: string
+          maxLength: 100
+        lastName:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        designation:
+          type: string
+          maxLength: 150
+        role:
+          $ref: "#/components/schemas/EmployeeRole"
+        reportsToEmpCode:
+          type: ["string", "null"]
+          maxLength: 50
+          description: Employee code of the reporting manager.
+        skillIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    UpdateEmployeeRequest:
+      type: object
+      required: [firstName, lastName, email, designation, role]
+      properties:
+        firstName:
+          type: string
+          maxLength: 100
+        lastName:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        designation:
+          type: string
+          maxLength: 150
+        role:
+          $ref: "#/components/schemas/EmployeeRole"
+        reportsToEmpCode:
+          type: ["string", "null"]
+          maxLength: 50
+          description: Employee code of the reporting manager.
+        skillIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        isActive:
+          type: boolean
+          description: "Set to false to deactivate. Active allocations are NOT automatically ended."
+
+    EmployeeAllocationsGrouped:
+      type: object
+      description: An employee's identity + their allocations. Used within ProjectTeamAllocationsGrouped and legacy views.
+      properties:
+        employeeId:
+          type: string
+          format: uuid
+        empCode:
+          type: string
+        fullName:
+          type: string
+        designation:
+          type: string
+        allocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllocationDetailResponse"
+
+    # ── Project Team Members (FR-020) ──────────────────────────────────────
+
+    ProjectTeamMemberResponse:
+      type: object
+      description: A project-scoped Team Lead → Reportee assignment.
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        projectCode:
+          type: string
+        teamLeadId:
+          type: string
+          format: uuid
+        teamLeadEmpCode:
+          type: string
+        teamLeadFullName:
+          type: string
+        reporteeId:
+          type: string
+          format: uuid
+        reporteeEmpCode:
+          type: string
+        reporteeFullName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    AddProjectTeamMemberRequest:
+      type: object
+      required: [teamLeadEmpCode, reporteeEmpCode]
+      properties:
+        teamLeadEmpCode:
+          type: string
+          maxLength: 50
+          description: Employee code of the Team Lead.
+        reporteeEmpCode:
+          type: string
+          maxLength: 50
+          description: Employee code of the reportee. Must differ from teamLeadEmpCode.
+
+    ProjectTeamAllocationsGrouped:
+      type: object
+      description: |
+        A project with the Team Lead's reportees and their allocations.
+        Used in the "My Team" section of Staff/PM dashboards (FR-019, FR-022).
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        projectCode:
+          type: string
+        projectName:
+          type: string
+        reportees:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmployeeAllocationsGrouped"
+          description: Reportees assigned to the authenticated user as Team Lead on this project.
+
+    # ── Skill ──────────────────────────────────────────────────────────────
+
+    SkillResponse:
+      type: object
+      properties:
+        skillId:
+          type: string
+          format: uuid
+        skillName:
+          type: string
+        isActive:
+          type: boolean
+
+    CreateSkillRequest:
+      type: object
+      required: [skillName]
+      properties:
+        skillName:
+          type: string
+          maxLength: 100
+
+    UpdateSkillRequest:
+      type: object
+      properties:
+        skillName:
+          type: string
+          maxLength: 100
+        isActive:
+          type: boolean
+
+    ManageOwnSkillRequest:
+      type: object
+      description: "Request to add a skill to the authenticated employee's profile (MVP2, FR-023)."
+      required: [skillId]
+      properties:
+        skillId:
+          type: string
+          format: uuid
+          description: ID of the master skill to add.
+
+    # ── Allocation ─────────────────────────────────────────────────────────
+
+    AllocationDetailResponse:
+      type: object
+      properties:
+        allocationId:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          format: uuid
+        empCode:
+          type: string
+        employeeFullName:
+          type: string
+        employeeDesignation:
+          type: string
+        projectId:
+          type: string
+          format: uuid
+        projectCode:
+          type: string
+        projectName:
+          type: string
+        accountCode:
+          type: string
+        accountName:
+          type: string
+        fromDate:
+          type: string
+          format: date
+        toDate:
+          type: ["string", "null"]
+          format: date
+          description: Null indicates an open-ended allocation.
+        percentage:
+          type: integer
+          minimum: 1
+          maximum: 100
+        status:
+          $ref: "#/components/schemas/AllocationRecordStatus"
+        allocatedByEmpCode:
+          type: string
+        deletedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateAllocationRequest:
+      type: object
+      required: [empCode, projectCode, fromDate, percentage]
+      properties:
+        empCode:
+          type: string
+          maxLength: 50
+          description: Employee code of the allocatee.
+        projectCode:
+          type: string
+          maxLength: 50
+          description: Project code to allocate to.
+        fromDate:
+          type: string
+          format: date
+        toDate:
+          type: ["string", "null"]
+          format: date
+          description: Omit or null for open-ended allocation.
+        percentage:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Must be ≥ minAllocationPct and a multiple of allocationIncrement.
+          examples: [50]
+
+    UpdateAllocationRequest:
+      type: object
+      required: [fromDate, percentage]
+      properties:
+        fromDate:
+          type: string
+          format: date
+        toDate:
+          type: ["string", "null"]
+          format: date
+        percentage:
+          type: integer
+          minimum: 1
+          maximum: 100
+
+    CapacityCheckResponse:
+      type: object
+      properties:
+        empCode:
+          type: string
+        windowFrom:
+          type: string
+          format: date
+        windowTo:
+          type: ["string", "null"]
+          format: date
+        currentTotalPercentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Maximum daily allocated % across the window.
+        availablePercentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 100 - currentTotalPercentage.
+        allocationStatus:
+          $ref: "#/components/schemas/AllocationStatus"
+
+    # ── Dashboard ──────────────────────────────────────────────────────────
+
+    ProjectViewAccountGroup:
+      type: object
+      description: An account with its projects and their allocations.
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        accountCode:
+          type: string
+        accountName:
+          type: string
+        accountType:
+          $ref: "#/components/schemas/AccountType"
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectViewItem"
+
+    ProjectViewItem:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        projectCode:
+          type: string
+        projectName:
+          type: string
+        status:
+          $ref: "#/components/schemas/ProjectStatus"
+        billable:
+          type: boolean
+        projectManagerName:
+          type: ["string", "null"]
+        isCurrentUserPM:
+          type: boolean
+          description: True if the calling user is the PM of this project.
+        allocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllocationDetailResponse"
+
+    ProjectViewResponse:
+      type: object
+      properties:
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectViewAccountGroup"
+        filtersApplied:
+          type: object
+          properties:
+            fromDate:
+              type: ["string", "null"]
+              format: date
+            toDate:
+              type: ["string", "null"]
+              format: date
+            includeEnded:
+              type: boolean
+
+    EmployeeViewItem:
+      type: object
+      description: Employee with their allocations for the Employee View dashboard.
+      properties:
+        employeeId:
+          type: string
+          format: uuid
+        empCode:
+          type: string
+        fullName:
+          type: string
+        designation:
+          type: string
+        role:
+          $ref: "#/components/schemas/EmployeeRole"
+        availabilityPercentage:
+          type: integer
+        allocationStatus:
+          $ref: "#/components/schemas/AllocationStatus"
+        skills:
+          type: array
+          items:
+            type: string
+        allocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllocationDetailResponse"
+
+    EmployeeViewResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmployeeViewItem"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    PMAllocationDashboardResponse:
+      type: object
+      description: "PM Allocation Dashboard (FR-022): own allocations + optional My Team section."
+      properties:
+        myAllocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllocationDetailResponse"
+          description: "The authenticated PM's own allocations (as an allocatee)."
+        myTeam:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectTeamAllocationsGrouped"
+          description: |
+            Present only if the PM is configured as a Team Lead on one or more projects.
+            Each entry groups reportees by project. Empty array if no team lead assignments.
+
+    # ── System Config ──────────────────────────────────────────────────────
+
+    SystemConfigResponse:
+      type: object
+      properties:
+        minAllocationPct:
+          type: integer
+          minimum: 5
+          maximum: 50
+          examples: [25]
+        allocationIncrement:
+          type: integer
+          enum: [5, 10]
+          examples: [5]
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateSystemConfigRequest:
+      type: object
+      required: [minAllocationPct, allocationIncrement]
+      properties:
+        minAllocationPct:
+          type: integer
+          minimum: 5
+          maximum: 50
+          description: Must be a multiple of allocationIncrement.
+        allocationIncrement:
+          type: integer
+          enum: [5, 10]
