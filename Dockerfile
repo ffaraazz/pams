@@ -2,14 +2,14 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy solution, props files, and restore first (layer caching)
-COPY Directory.Build.props Directory.Packages.props PAMS.slnx global.json ./
+# Copy project files and restore (layer caching)
+COPY Directory.Build.props Directory.Packages.props global.json ./
 COPY src/PAMS.Domain/PAMS.Domain.csproj             src/PAMS.Domain/
 COPY src/PAMS.Application/PAMS.Application.csproj   src/PAMS.Application/
 COPY src/PAMS.Infrastructure/PAMS.Infrastructure.csproj src/PAMS.Infrastructure/
 COPY src/PAMS.API/PAMS.API.csproj                   src/PAMS.API/
 
-RUN dotnet restore PAMS.slnx
+RUN dotnet restore src/PAMS.API/PAMS.API.csproj
 
 # Copy everything and publish
 COPY src/ src/
@@ -22,13 +22,12 @@ RUN dotnet publish src/PAMS.API/PAMS.API.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Non-root user for security
-RUN adduser --disabled-password --gecos "" appuser
-USER appuser
+# Use the built-in non-root 'app' user (included since .NET 8)
+USER app
 
 COPY --from=build /app/publish .
 
-EXPOSE 8080
-ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 5000
+ENV ASPNETCORE_URLS=http://+:5000
 
 ENTRYPOINT ["dotnet", "PAMS.API.dll"]

@@ -17,7 +17,7 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.1
-    command: start-dev --import-realm
+    command: start-dev --import-realm --health-enabled=true
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
@@ -25,13 +25,12 @@ services:
       - "${KEYCLOAK_PORT:-8080}:8080"
     volumes:
       - ./keycloak/realm-pams.json:/opt/keycloak/data/import/realm-pams.json:ro
-      - keycloak_data:/opt/keycloak/data
     healthcheck:
-      test:
-        ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000"]
+      interval: 10s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 30s
 
   api:
     build:
@@ -39,24 +38,24 @@ services:
       dockerfile: Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_URLS: http://+:5000
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-pams};Username=${POSTGRES_USER:-pams_user};Password=${POSTGRES_PASSWORD};Search Path=pams"
       KeycloakSettings__Authority: "http://keycloak:8080/realms/pams"
+      KeycloakSettings__ExternalAuthority: "http://localhost:${KEYCLOAK_PORT:-8080}/realms/pams"
       KeycloakSettings__Audience: "pams-api"
       KeycloakSettings__RequireHttpsMetadata: "false"
     ports:
-      - "${API_PORT:-5000}:8080"
+      - "${API_PORT:-5000}:5000"
     depends_on:
       postgres:
         condition: service_healthy
       keycloak:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/5000 && echo -e 'GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q 'Healthy' || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
 
 volumes:
   postgres_data:
-  keycloak_data:

@@ -18,6 +18,19 @@ public static class ServiceCollectionExtensions
                 options.RequireHttpsMetadata = bool.Parse(
                     configuration["KeycloakSettings:RequireHttpsMetadata"] ?? "true");
 
+                // When running in Docker, Authority is the internal URL (http://keycloak:8080/...)
+                // but the browser obtains tokens from the external URL (http://localhost:8080/...).
+                // Accept both issuers so tokens work in all environments.
+                var externalAuthority = configuration["KeycloakSettings:ExternalAuthority"];
+                if (!string.IsNullOrEmpty(externalAuthority))
+                {
+                    options.TokenValidationParameters.ValidIssuers =
+                    [
+                        configuration["KeycloakSettings:Authority"]!,
+                        externalAuthority
+                    ];
+                }
+
                 // Map Keycloak realm_access.roles to ClaimTypes.Role
                 options.Events = new JwtBearerEvents
                 {

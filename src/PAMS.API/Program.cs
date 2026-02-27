@@ -51,6 +51,9 @@ try
     builder.Services.AddEndpointsApiExplorer();
 
     var keycloakAuthority = builder.Configuration["KeycloakSettings:Authority"]!;
+    // ExternalAuthority is the browser-reachable Keycloak URL (for Swagger UI token requests).
+    // Falls back to Authority when running outside Docker (e.g. localhost dev).
+    var swaggerAuthority = builder.Configuration["KeycloakSettings:ExternalAuthority"] ?? keycloakAuthority;
     builder.Services.AddSwaggerGen(options =>
     {
         options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
@@ -78,7 +81,7 @@ try
             {
                 Password = new Microsoft.OpenApi.Models.OpenApiOAuthFlow
                 {
-                    TokenUrl = new Uri($"{keycloakAuthority}/protocol/openid-connect/token"),
+                    TokenUrl = new Uri($"{swaggerAuthority}/protocol/openid-connect/token"),
                     Scopes = new Dictionary<string, string>
                     {
                         { "openid", "OpenID" },
