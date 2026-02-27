@@ -14,10 +14,16 @@ public sealed class EmployeeRepository : IEmployeeRepository
     }
 
     public async Task<Employee?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => await _context.Employees.FirstOrDefaultAsync(e => e.Id == id, ct);
+        => await _context.Employees
+            .Include(e => e.EmployeeSkills).ThenInclude(es => es.Skill)
+            .Include(e => e.Allocations).ThenInclude(a => a.Project)
+            .FirstOrDefaultAsync(e => e.Id == id, ct);
 
     public async Task<Employee?> GetByEmpCodeAsync(string empCode, CancellationToken ct = default)
-        => await _context.Employees.FirstOrDefaultAsync(
+        => await _context.Employees
+            .Include(e => e.EmployeeSkills).ThenInclude(es => es.Skill)
+            .Include(e => e.Allocations).ThenInclude(a => a.Project)
+            .FirstOrDefaultAsync(
             e => e.EmpCode.ToLower() == empCode.ToLower(), ct);
 
     public async Task<Employee?> GetByEmailAsync(string email, CancellationToken ct = default)
@@ -92,7 +98,10 @@ public sealed class EmployeeRepository : IEmployeeRepository
         string? search, Guid? skillId, bool benchOnly, string? role,
         bool? isActive, DateOnly? windowFrom, DateOnly? windowTo)
     {
-        var query = _context.Employees.AsQueryable();
+        var query = _context.Employees
+            .Include(e => e.EmployeeSkills).ThenInclude(es => es.Skill)
+            .Include(e => e.Allocations)
+            .AsQueryable();
 
         if (isActive.HasValue)
             query = query.Where(e => e.IsActive == isActive.Value);
