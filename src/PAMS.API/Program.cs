@@ -100,17 +100,25 @@ try
 
     var app = builder.Build();
 
-    // Auto-migrate + seed in development
-    if (app.Environment.IsDevelopment())
+    // Auto-migrate + seed
     {
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PamsDbContext>();
         await db.Database.MigrateAsync();
 
         var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-        await SystemConfigSeeder.SeedAsync(db, loggerFactory.CreateLogger("Seeder"));
-        await SkillSeeder.SeedAsync(db, loggerFactory.CreateLogger("Seeder"));
-        await EmployeeSeeder.SeedAsync(db, loggerFactory.CreateLogger("Seeder"));
+        var seedLogger = loggerFactory.CreateLogger("Seeder");
+
+        // Production-safe seeds (always run)
+        await SystemConfigSeeder.SeedAsync(db, seedLogger);
+        await SkillSeeder.SeedAsync(db, seedLogger);
+
+        // Development-only seeds (test users + demo data)
+        if (app.Environment.IsDevelopment())
+        {
+            await EmployeeSeeder.SeedAsync(db, seedLogger);
+            await DemoDataSeeder.SeedAsync(db, seedLogger);
+        }
     }
 
     // Middleware pipeline
