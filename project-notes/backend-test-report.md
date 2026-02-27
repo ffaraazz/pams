@@ -1,7 +1,7 @@
 # Backend Test Report
 
 **Generated**: Phase 4 — BackendDeveloper  
-**Date**: 2025-07-17 (updated)  
+**Date**: 2025-07-23 (updated)  
 **Solution**: PAMS.slnx (.NET 10.0)  
 **Test Framework**: xUnit 2.9.3, FluentAssertions 7.0.0, NSubstitute 5.3.0
 
@@ -11,12 +11,15 @@
 
 | Metric         | Value |
 | -------------- | ----- |
-| Total Tests    | 100   |
+| Unit Tests     | 100   |
 | Passed         | 100   |
 | Failed         | 0     |
 | Skipped        | 0     |
 | Build Warnings | 0     |
 | Build Errors   | 0     |
+| Endpoint Tests | 44    |
+| Endpoint Pass  | 44    |
+| Bugs Fixed     | 3     |
 
 ---
 
@@ -147,6 +150,56 @@
 
 ## Issues Found & Resolved During TDD
 
+### 7. Invalid enum string values in database — 500 ERR_INTERNAL on all list endpoints
+
+- **Affected endpoints**: GET /accounts, GET /projects, and all endpoints loading those entities
+- **Root cause**: Manual SQL inserts used invalid enum string values (`Enterprise`, `Startup`, `Financial`, `Retail` for `account_type`; `Planning` for project `status`). EF Core's `HasConversion<string>()` fails to deserialize unknown strings back to C# enums, throwing unhandled exceptions.
+- **Fix**: Updated database records to valid enum values (`Client`, `Internal`, `Bench` for AccountType; `Upcoming` for ProjectStatus).
+- **Prevention**: DemoDataSeeder uses proper enum types. Manual SQL inserts must only use defined enum member names.
+
+### 8. Enum JSON serialization as integers instead of strings
+
+- **Affected endpoints**: All endpoints returning enum fields (AccountType, ProjectStatus, EmployeeRole, AllocationStatus)
+- **Root cause**: `AddControllers()` called without JSON options — System.Text.Json defaults serialize enums as integers (0, 1, 2) instead of strings.
+- **Fix**: Added `JsonStringEnumConverter` to `AddControllers().AddJsonOptions()` in Program.cs.
+- **API spec compliance**: All enum fields now serialize as strings per api-spec.yaml.
+
+### 9. Missing .Include() in AllocationRepository — empty names in Dashboard views
+
+- **Affected endpoints**: GET /dashboard/project-view, GET /dashboard/employee-view
+- **Root cause**: `GetByEmployeeAsync` lacked `.Include(a => a.Project)` and `GetByProjectAsync` lacked `.Include(a => a.Employee)`. Dashboard showed empty strings for employee/project names.
+- **Fix**: Added `.Include()` calls to both methods in AllocationRepository.
+
+---
+
+## Endpoint Integration Tests (44/44 PASS)
+
+Tested all GET endpoints across 3 roles (HR, PM, Staff) with live Keycloak + PostgreSQL.
+
+| Category      | Tests | Pass | Details                                                               |
+| ------------- | ----- | ---- | --------------------------------------------------------------------- |
+| Skills        | 3     | 3    | list, filter                                                          |
+| System Config | 3     | 3    | get, forbidden (Staff, PM)                                            |
+| Accounts      | 8     | 8    | list, detail, 404, filter type/active, search, forbidden (Staff)      |
+| Projects      | 9     | 9    | list (all roles), detail, 404, filter status/billable/account, search |
+| Employees     | 8     | 8    | list, detail, 404, /me (all 3 roles), search                          |
+| Allocations   | 3     | 3    | capacity-check, 404, forbidden (Staff)                                |
+| Dashboard     | 5     | 5    | project-view (HR, PM), employee-view (HR, PM), forbidden (Staff)      |
+| Team Members  | 3     | 3    | list, 404, forbidden (Staff)                                          |
+| No Auth       | 2     | 2    | 401 for unauthenticated requests                                      |
+
+### Enum Serialization Verified
+
+| Field         | Output     | Expected | Status |
+| ------------- | ---------- | -------- | ------ |
+| AccountType   | `"Client"` | string   | ✅     |
+| ProjectStatus | `"Active"` | string   | ✅     |
+| EmployeeRole  | `"HR"`     | string   | ✅     |
+
+---
+
+## Issues Found & Resolved During TDD (Earlier)
+
 ### 1. Test Compilation Error — FluentAssertions `.Or` Syntax
 
 - **File**: AllocationCapacityServiceTests.cs (line 175)
@@ -224,4 +277,6 @@ New command handlers created during controller implementation phase do not yet h
 
 1. **MVP2 endpoints not yet implemented:** Employee self-manage skills (`/employees/me/skills`) endpoints are MVP2 scope.
 2. **Keycloak required:** Auth requires running Keycloak instance with PAMS realm, client, and roles (HR, ProjectManager, Staff).
-3. **Running the app:** `docker-compose up -d` → `dotnet run --project src/PAMS.API` → Scalar docs at `/scalar/v1`.
+3. **Running the app:** `docker-compose up -d` → `dotnet run --project src/PAMS.API` → Swagger docs at `/swagger`.
+4. **Enum serialization:** `JsonStringEnumConverter` configured in Program.cs — all enums serialize as strings.
+5. **Navigation property loading:** All repositories include required navigation properties for their query methods.

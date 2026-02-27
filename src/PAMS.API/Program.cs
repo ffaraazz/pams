@@ -42,7 +42,12 @@ try
     // API services (Auth, Policies, CORS, Health Checks)
     builder.Services.AddApiServices(builder.Configuration);
 
-    builder.Services.AddControllers();
+    builder.Services.AddControllers()
+        .AddJsonOptions(options =>
+        {
+            options.JsonSerializerOptions.Converters.Add(
+                new System.Text.Json.Serialization.JsonStringEnumConverter());
+        });
     builder.Services.AddEndpointsApiExplorer();
 
     var keycloakAuthority = builder.Configuration["KeycloakSettings:Authority"]!;
