@@ -165,7 +165,7 @@ public sealed class EmployeesController : ControllerBase
         [FromQuery] DateOnly? windowTo = null,
         CancellationToken ct = default)
     {
-        var employee = await _employeeRepo.GetByIdAsync(_currentUser.EmployeeId, ct);
+        var employee = await _employeeRepo.GetByEmpCodeAsync(_currentUser.EmpCode, ct);
         if (employee is null) return NotFound();
 
         return Ok(await BuildEmployeeDetailResponse(employee, false, false, ct));
