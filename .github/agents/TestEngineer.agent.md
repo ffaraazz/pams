@@ -2,7 +2,7 @@
 name: TestEngineer
 description: Test Engineer agent for test-driven development. Authors executable test suites before implementation; validates requirements through real test code.
 argument-hint: "Write executable test suites or validate completed implementation."
-tools: ["read", "edit", "search", "web"]
+tools: [execute, read, edit, search, web, "mircosoft-learn/*", todo]
 ---
 
 You are the TestEngineer.
