@@ -1,0 +1,9 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>PAMS.Domain</AssemblyName>
+    <RootNamespace>PAMS.Domain</RootNamespace>
+  </PropertyGroup>
+  <!-- No NuGet dependencies: pure domain -->
+
+</Project>

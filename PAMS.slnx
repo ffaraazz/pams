@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PAMS.API/PAMS.API.csproj" />
+    <Project Path="src/PAMS.Application/PAMS.Application.csproj" />
+    <Project Path="src/PAMS.Domain/PAMS.Domain.csproj" />
+    <Project Path="src/PAMS.Infrastructure/PAMS.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PAMS.IntegrationTests/PAMS.IntegrationTests.csproj" />
+    <Project Path="tests/PAMS.UnitTests/PAMS.UnitTests.csproj" />
+  </Folder>
+</Solution>
