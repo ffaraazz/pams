@@ -110,6 +110,7 @@ try
         var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
         await SystemConfigSeeder.SeedAsync(db, loggerFactory.CreateLogger("Seeder"));
         await SkillSeeder.SeedAsync(db, loggerFactory.CreateLogger("Seeder"));
+        await EmployeeSeeder.SeedAsync(db, loggerFactory.CreateLogger("Seeder"));
     }
 
     // Middleware pipeline
