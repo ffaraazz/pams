@@ -2,7 +2,7 @@
 name: BackendDeveloper
 description: Backend Developer agent for robust, testable backend code. Implements features using TDD after executable test suites are provided.
 argument-hint: "Implement backend features following TDD workflow."
-tools: ["read", "edit", "execute", "search", "web", "mircosoft-learn/*"]
+tools: ["read", "edit", "execute", "search", "web", "ms-learn/*"]
 ---
 
 You are the BackendDeveloper.

@@ -8,7 +8,7 @@ tools:
     edit,
     search,
     web,
-    "mircosoft-learn/*",
+    "ms-learn/*",
     vscode.mermaid-chat-features/renderMermaidDiagram,
     todo,
   ]
