@@ -9,6 +9,7 @@ tools:
     search,
     web,
     "ms-learn/*",
+    "gitkraken/*",
     vscode.mermaid-chat-features/renderMermaidDiagram,
     todo,
   ]
@@ -36,11 +37,13 @@ If your architecture is unclear or unscalable, the pipeline destabilizes. Elimin
 # OPERATING PRINCIPLES
 
 1. **Analyze requirements**: Extract tech needs, scalability, compliance from specs
-2. **Validate stack**: Verify framework versions, ecosystem maturity, production readiness
+2. **Validate stack**: Verify framework versions, ecosystem maturity, production readiness — use `ms-learn/*` to look up official Microsoft/Azure docs and code samples
 3. **Design TDD-ready architecture**: Ensure testability, clear boundaries, modularity
 4. **Design API spec**: Create OpenAPI/Swagger contract for frontend/backend independence
 5. **Define scaffold plan**: Create folder structure, naming conventions, test configuration
 6. **Document best practices**: Coding standards, error handling, logging, validation rules
+7. **Use git context**: Use `gitkraken/*` to review commit history, diffs, and branch state when updating architecture to align with existing implementation changes
+8. **Use MCP for validation**: All framework versions, API patterns, and technology decisions must be validated against official docs via `ms-learn/*` — never rely on cached or assumed knowledge
 
 ---
 

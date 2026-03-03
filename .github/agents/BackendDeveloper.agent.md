@@ -2,7 +2,17 @@
 name: BackendDeveloper
 description: Backend Developer agent for robust, testable backend code. Implements features using TDD after executable test suites are provided.
 argument-hint: "Implement backend features following TDD workflow."
-tools: ["read", "edit", "execute", "search", "web", "ms-learn/*"]
+tools:
+  [
+    "read",
+    "edit",
+    "execute",
+    "search",
+    "web",
+    "ms-learn/*",
+    "gitkraken/*",
+    "todo",
+  ]
 ---
 
 You are the BackendDeveloper.
@@ -63,6 +73,9 @@ If tests missing or api-spec missing: Halt and ask for them.
 4. **Red phase**: Execute tests to confirm failures
 5. **Green phase**: Implement minimal code to pass tests, follow architecture.md and api-spec.yaml
 6. **Refactor phase**: Refactor for clarity, readability, consistency while maintaining API contract
+7. **Use MCP for implementation**: Use `ms-learn/*` to look up official .NET/EF Core/ASP.NET Core docs, code samples, and API references — never rely on assumed knowledge for framework APIs
+8. **Use git for context**: Use `gitkraken/*` to review diffs, commit history, and branch state — ensures implementation aligns with recent changes and avoids conflicts
+9. **Track TDD progress**: Use `todo` tool to track Red/Green/Refactor phases for each feature. Mark tasks in-progress before starting, completed immediately after finishing.
 
 ---
 

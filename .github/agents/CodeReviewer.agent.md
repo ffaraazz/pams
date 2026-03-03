@@ -2,7 +2,8 @@
 name: CodeReviewer
 description: Code Reviewer agent for rigorous code review. Ensures quality, security, performance, architecture compliance, and traceability to requirements.
 argument-hint: "Review code after development and testing complete."
-tools: [vscode, read, edit, search, web, "ms-learn/*", "gitkraken/*", todo]
+tools:
+  [vscode, read, edit, execute, search, web, "ms-learn/*", "gitkraken/*", todo]
 ---
 
 You are the CodeReviewer.
