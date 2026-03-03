@@ -2,7 +2,7 @@
 
 ## Current Pipeline State: `DEV_VERIFIED_ALL_TESTS_PASS`
 
-### Active Feature: ProjectRole on Allocation — COMPLETE
+### Active Feature: Seeder Update — ProjectRole Population — COMPLETE
 
 **Scope:**
 
@@ -154,3 +154,14 @@
 - **Task:** Remove all dashboard references from documentation
 - **Status:** ✅ COMPLETED (2026-03-03T10:30:00Z)
 - **Results:** api-spec.yaml v1.8.0 (dashboard tag, 2 paths, 5 schemas removed). api-flow.md (29→27 endpoints, deprecation→removal section). architecture.md (CanViewDashboard policy removed, dashboard controller/queries removed, §16 updated to "Dashboard Removal").
+
+---
+
+### Wave 7 — Seeder Update (ProjectRole Population)
+
+#### Dispatch #15: BackendDeveloper → `src/PAMS.Infrastructure/Persistence/Seed/DemoDataSeeder.cs`
+
+- **Task:** Add `ProjectRole` values to all 12 allocation seed entries. Update integration test SeedData if needed.
+- **Status:** ✅ COMPLETED (2026-03-03T11:15:00Z)
+- **Dispatched:** 2026-03-03T11:00:00Z
+- **Results:** All 12 allocation seeds updated with ProjectRole values. Zero compile errors. Values: Senior Developer, Developer, Tech Lead, Architect, Frontend Developer, QA Lead, QA Engineer, DevOps Engineer (×2), Backend Developer, Developer, Full Stack Developer.

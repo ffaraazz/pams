@@ -349,51 +349,63 @@ public static class DemoDataSeeder
             // David Chen: 50% Azure + 50% Teams = Full
             new() { Id = Guid.NewGuid(), EmployeeId = emp004.Id, ProjectId = prjAzureMig.Id,
                 FromDate = new(2025, 6, 1), ToDate = new(2026, 6, 30), Percentage = 50,
+                ProjectRole = "Senior Developer",
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
             new() { Id = Guid.NewGuid(), EmployeeId = emp004.Id, ProjectId = prjTeamsInt.Id,
                 FromDate = new(2025, 6, 1), ToDate = new(2025, 12, 31), Percentage = 50,
+                ProjectRole = "Developer",
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
 
             // Sarah Johnson: 75% Azure + 25% Teams = Full
             new() { Id = Guid.NewGuid(), EmployeeId = emp005.Id, ProjectId = prjAzureMig.Id,
                 FromDate = new(2025, 3, 1), ToDate = new(2026, 6, 30), Percentage = 75,
+                ProjectRole = "Tech Lead",
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
             new() { Id = Guid.NewGuid(), EmployeeId = emp005.Id, ProjectId = prjTeamsInt.Id,
                 FromDate = new(2025, 8, 1), ToDate = new(2025, 12, 31), Percentage = 25,
+                ProjectRole = "Architect",
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
 
             // Mike Wilson: 100% GCP = Full
             new() { Id = Guid.NewGuid(), EmployeeId = emp006.Id, ProjectId = prjGcpApp.Id,
                 FromDate = new(2025, 4, 1), ToDate = new(2026, 3, 31), Percentage = 100,
+                ProjectRole = "Frontend Developer",
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
             // Emily Davis: 50% AI POC + 25% Fraud Det = Partial
             new() { Id = Guid.NewGuid(), EmployeeId = emp007.Id, ProjectId = prjAiPoc.Id,
                 FromDate = new(2025, 9, 1), ToDate = null, Percentage = 50,
+                ProjectRole = "QA Lead",
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
             new() { Id = Guid.NewGuid(), EmployeeId = emp007.Id, ProjectId = prjFraud.Id,
                 FromDate = new(2026, 1, 1), ToDate = new(2026, 9, 30), Percentage = 25,
+                ProjectRole = "QA Engineer",
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
             // James Taylor: 25% Azure + 25% Payment = Partial (50% available)
             new() { Id = Guid.NewGuid(), EmployeeId = emp008.Id, ProjectId = prjAzureMig.Id,
                 FromDate = new(2025, 6, 1), ToDate = new(2026, 6, 30), Percentage = 25,
+                ProjectRole = "DevOps Engineer",
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
             new() { Id = Guid.NewGuid(), EmployeeId = emp008.Id, ProjectId = prjPaySys.Id,
                 FromDate = new(2025, 8, 1), ToDate = new(2026, 12, 31), Percentage = 25,
+                ProjectRole = "DevOps Engineer",
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
             // Bob Staff: 100% MVP (ended) + 50% Payment System (current)
             new() { Id = Guid.NewGuid(), EmployeeId = emp003.Id, ProjectId = prjMvp.Id,
                 FromDate = new(2025, 4, 1), ToDate = new(2025, 10, 31), Percentage = 100,
+                ProjectRole = "Backend Developer",
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
             new() { Id = Guid.NewGuid(), EmployeeId = emp003.Id, ProjectId = prjPaySys.Id,
                 FromDate = new(2026, 1, 15), ToDate = new(2026, 12, 31), Percentage = 50,
+                ProjectRole = "Developer",
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
             // Tom Brown (inactive): E-Commerce (soft-deleted)
             new() { Id = Guid.NewGuid(), EmployeeId = emp010.Id, ProjectId = prjEcom.Id,
                 FromDate = new(2024, 6, 1), ToDate = new(2025, 3, 31), Percentage = 100,
+                ProjectRole = "Full Stack Developer",
                 AllocatedById = emp002.Id, DeletedAt = now, CreatedAt = now, UpdatedAt = now },
         };
 
