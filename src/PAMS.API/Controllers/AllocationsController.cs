@@ -84,20 +84,7 @@ public sealed class AllocationsController : ControllerBase
         var employee = await _employeeRepo.GetByIdAsync(allocation.EmployeeId, ct);
         var project = await _projectRepo.GetByIdAsync(allocation.ProjectId, ct);
 
-        return Ok(new AllocationDetailResponse
-        {
-            AllocationId = allocation.Id,
-            EmployeeId = allocation.EmployeeId,
-            EmpCode = employee?.EmpCode ?? string.Empty,
-            EmployeeName = employee is not null ? $"{employee.FirstName} {employee.LastName}" : string.Empty,
-            ProjectId = allocation.ProjectId,
-            ProjectCode = project?.ProjectCode ?? string.Empty,
-            ProjectName = project?.ProjectName ?? string.Empty,
-            Percentage = allocation.Percentage,
-            FromDate = allocation.FromDate,
-            ToDate = allocation.ToDate,
-            CreatedAt = allocation.CreatedAt
-        });
+        return Ok(AllocationDetailResponse.MapFrom(allocation, employee, project));
     }
 
     /// <summary>
@@ -171,20 +158,7 @@ public sealed class AllocationsController : ControllerBase
         var employee = await _employeeRepo.GetByIdAsync(allocation.EmployeeId, ct);
         var project = await _projectRepo.GetByIdAsync(allocation.ProjectId, ct);
 
-        return Ok(new AllocationDetailResponse
-        {
-            AllocationId = allocation.Id,
-            EmployeeId = allocation.EmployeeId,
-            EmpCode = employee?.EmpCode ?? string.Empty,
-            EmployeeName = employee is not null ? $"{employee.FirstName} {employee.LastName}" : string.Empty,
-            ProjectId = allocation.ProjectId,
-            ProjectCode = project?.ProjectCode ?? string.Empty,
-            ProjectName = project?.ProjectName ?? string.Empty,
-            Percentage = allocation.Percentage,
-            FromDate = allocation.FromDate,
-            ToDate = allocation.ToDate,
-            CreatedAt = allocation.CreatedAt
-        });
+        return Ok(AllocationDetailResponse.MapFrom(allocation, employee, project));
     }
 
     /// <summary>
@@ -216,20 +190,7 @@ public sealed class AllocationsController : ControllerBase
         var employee = await _employeeRepo.GetByIdAsync(allocation.EmployeeId, ct);
         var project = await _projectRepo.GetByIdAsync(allocation.ProjectId, ct);
 
-        return Ok(new AllocationDetailResponse
-        {
-            AllocationId = allocation.Id,
-            EmployeeId = allocation.EmployeeId,
-            EmpCode = employee?.EmpCode ?? string.Empty,
-            EmployeeName = employee is not null ? $"{employee.FirstName} {employee.LastName}" : string.Empty,
-            ProjectId = allocation.ProjectId,
-            ProjectCode = project?.ProjectCode ?? string.Empty,
-            ProjectName = project?.ProjectName ?? string.Empty,
-            Percentage = allocation.Percentage,
-            FromDate = allocation.FromDate,
-            ToDate = allocation.ToDate,
-            CreatedAt = allocation.CreatedAt
-        });
+        return Ok(AllocationDetailResponse.MapFrom(allocation, employee, project));
     }
 
     /// <summary>

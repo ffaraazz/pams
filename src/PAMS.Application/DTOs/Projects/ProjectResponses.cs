@@ -1,3 +1,5 @@
+using PAMS.Application.DTOs.Allocations;
+using PAMS.Application.DTOs.ProjectTeamMembers;
 using PAMS.Domain.Enums;
 
 namespace PAMS.Application.DTOs.Projects;
@@ -38,4 +40,6 @@ public sealed record ProjectDetailResponse
     public DateOnly? EndDate { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+    public IReadOnlyList<AllocationDetailResponse> Allocations { get; init; } = Array.Empty<AllocationDetailResponse>();
+    public IReadOnlyList<ProjectTeamMemberResponse> TeamMembers { get; init; } = Array.Empty<ProjectTeamMemberResponse>();
 }

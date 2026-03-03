@@ -146,9 +146,9 @@ Orchestrates domain objects. Depends on **Domain** only (via interfaces). Contai
   - `EmployeeSkills/` – `ManageOwnSkillsCommand` _(MVP2 — employee self-manage skills; handler rejects with 501 until MVP2 feature flag enabled)_
 - `Queries/`
   - `Accounts/` – `GetAccountsQuery`, `GetAccountByCodeQuery`
-  - `Projects/` – `GetProjectsQuery`, `GetProjectByCodeQuery`, `GetProjectsDashboardQuery`
+  - `Projects/` – `GetProjectsQuery`, `GetProjectByCodeQuery`
   - `Employees/` – `GetEmployeesQuery` _(unified: search + list + filter via query params; no separate SearchEmployeesQuery)_, `GetEmployeeByCodeQuery`, `GetEmployeeAllocationStatusQuery`
-  - `Allocations/` – `GetAllocationsByEmployeeQuery`, `GetAllocationsByProjectQuery`, `GetEmployeeViewDashboardQuery`, `GetProjectViewDashboardQuery`
+  - `Allocations/` – `GetAllocationsByEmployeeQuery`, `GetAllocationsByProjectQuery`
   - `ProjectTeamMembers/` – `GetProjectTeamMembersQuery`
   - `Skills/` – `GetSkillsQuery`
   - `SystemConfig/` – `GetSystemConfigQuery`
@@ -162,7 +162,7 @@ Orchestrates domain objects. Depends on **Domain** only (via interfaces). Contai
 **Command/Query segregation:**
 
 - Commands: mutate state; wrapped in `TransactionBehavior` (DB transaction + audit log)
-- Queries: read-only; bypass transaction behavior; may use raw SQL / Dapper for complex dashboards
+- Queries: read-only; bypass transaction behavior; may use raw SQL / Dapper for complex queries
 
 > **StopAllocationCommandHandler constraint-safe stop date logic:** When domain service returns a stop date earlier than `allocation.FromDate` (cancelling a future allocation), the handler uses `FromDate` as `ToDate` to satisfy DB constraint `chk_allocation_dates` (`to_date >= from_date`).
 
@@ -226,7 +226,6 @@ Presentation layer. HTTP in; HTTP out. No business logic.
   - `EmployeesController.cs`
   - `AllocationsController.cs`
   - `SkillsController.cs`
-  - `DashboardController.cs` – project view + employee view dashboard queries
   - `SystemConfigController.cs`
   - `ProjectTeamMembersController.cs` – CRUD for project-scoped team lead / reportee mappings (FR-020)
 - `Middleware/`
@@ -300,7 +299,6 @@ builder.Services
 | -------------------- | ------------------------- | ------------------------------------------------ |
 | `HROnly` | HR | Account/Project/Employee CRUD |
 | `CanAllocate` | HR, ProjectManager | Allocation create/update/stop/remove |
-| `CanViewDashboard` | HR, ProjectManager | Project View, Employee View, Search |
 | `AuthenticatedUser` | HR, ProjectManager, Staff | Staff own-allocation view, profile |
 
 **PM Scope Enforcement (server-side — unchanged):**
@@ -502,7 +500,7 @@ CREATE INDEX idx_alloc_employee_dates ON pams.allocations (employee_id, from_dat
 -- Project view query index
 CREATE INDEX idx_alloc_project ON pams.allocations (project_id)
     WHERE deleted_at IS NULL;
--- Dashboard / employee view
+-- Employee view
 CREATE INDEX idx_alloc_employee_active ON pams.allocations (employee_id)
     WHERE deleted_at IS NULL;
 ```
@@ -767,13 +765,38 @@ ASP.NET Core built-in `RateLimiter` (no external dep):
 
 ---
 
-## 16. Architectural Decisions & Tradeoffs
+## 16. Enriched Response Strategy
+
+### Enriched Response Strategy
+
+As of v1.7.0, resource APIs embed related data directly in their responses. Dashboard aggregation endpoints have been removed (v1.8.0):
+
+| Endpoint                   | Enrichment                                                                           | Purpose                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `GET /projects/{code}`     | `+allocations[]`, `+teamMembers[]`                                                   | Single call for full project view with resources and team assignments                    |
+| `GET /employees/me`        | `+managedProjects[]`                                                                 | Self-profile includes projects where user is PM or TeamLead                              |
+| `GET /employees/{empCode}` | `+managedProjects[]`                                                                 | Employee detail includes management responsibilities                                     |
+| `AllocationDetailResponse` | `+designation`, `+billable`, `+accountCode`, `+accountName`, `+status`, `+updatedAt` | Allocation responses carry denormalized display data from Employee, Project, and Account |
+
+This approach follows the **Backend-for-Frontend (BFF) pattern** — the API shapes responses to match what the consumer needs in a single call, reducing round-trips and client-side data joining.
+
+### Dashboard Removal
+
+`DashboardController` and its handlers (`GetProjectViewDashboardQuery`, `GetEmployeeViewDashboardQuery`) have been removed from the codebase in v1.8.0:
+
+- `GET /api/v1/dashboard/project-view` → removed; use enriched `GET /projects/{code}`
+- `GET /api/v1/dashboard/employee-view` → removed; use `GET /employees` + `GET /employees/me`
+- `CanViewDashboard` authorization policy → removed
+
+---
+
+## 17. Architectural Decisions & Tradeoffs
 
 | Decision                  | Chosen Approach                                | Rejected Alternative                 | Reason                                                                                                                              |
 | ------------------------- | ---------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Auth mechanism            | Keycloak OAuth2/OIDC (PAMS as resource server) | Local JWT + password store           | Delegates identity entirely to Keycloak; no password management in PAMS; future swap to Azure AD requires only Authority URL change |
 | CQRS implementation       | MediatR in-process                             | Event sourcing                       | PAMS is CRUD-heavy; full ES is premature                                                                                            |
-| ORM                       | EF Core (code-first)                           | Dapper                               | Migration management; LINQ for complex queries; Dapper used for perf-critical dashboard queries                                     |
+| ORM                       | EF Core (code-first)                           | Dapper                               | Migration management; LINQ for complex queries; Dapper used for perf-critical queries                                               |
 | Soft delete               | `deletedAt` timestamp                          | Status enum + hard delete            | Audit requirement; history preservation                                                                                             |
 | Allocation capacity query | SQL SUM in one query                           | Load all allocations to memory       | Performance (≤300ms per FR-011 AC-011-5)                                                                                            |
 | Concurrency control       | Advisory locks                                 | Optimistic concurrency (row version) | Advisory locks guarantee serializability without retry logic                                                                        |

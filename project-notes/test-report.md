@@ -12,10 +12,10 @@
 
 | Metric                   | Value         |
 | ------------------------ | ------------- |
-| **Total Tests**          | **246**       |
-| **Unit Tests**           | 187           |
+| **Total Tests**          | **256**       |
+| **Unit Tests**           | 197           |
 | **Integration Tests**    | 59            |
-| **Passed**               | **246**       |
+| **Passed**               | **256**       |
 | **Failed**               | 0             |
 | **Skipped**              | 0             |
 | **Build Warnings**       | 0             |
@@ -26,7 +26,7 @@
 
 ---
 
-## 1. Unit Tests — 187 Passed
+## 1. Unit Tests — 197 Passed
 
 ### 1.1 Domain Layer (28 tests)
 
@@ -45,13 +45,13 @@
 | CreateEmployeeCommandValidatorTests       | FR-007 | 15    | ✅ All pass |
 | AddProjectTeamMemberCommandValidatorTests | FR-020 | 6     | ✅ All pass |
 
-### 1.3 Application Layer — Command Handlers (127 tests)
+### 1.3 Application Layer — Command Handlers (132 tests)
 
-#### Pre-existing Handlers (41 tests)
+#### Pre-existing Handlers (46 tests)
 
 | Test File                           | FR-ID  | Tests | Status      |
 | ----------------------------------- | ------ | ----- | ----------- |
-| CreateAllocationCommandHandlerTests | FR-010 | 7     | ✅ All pass |
+| CreateAllocationCommandHandlerTests | FR-010 | 12    | ✅ All pass |
 | StopAllocationCommandHandlerTests   | FR-013 | 6     | ✅ All pass |
 | RemoveAllocationCommandHandlerTests | FR-014 | 7     | ✅ All pass |
 | UpdateAllocationCommandHandlerTests | FR-012 | 7     | ✅ All pass |
@@ -72,6 +72,13 @@
 | SkillCommandHandlerTests              | FR-005     | 8     | ✅ All pass | Create + Update: happy path, duplicate name → 409, not found, deactivate, no-name-change, audit    |
 | UpdateSystemConfigCommandHandlerTests | FR-006     | 7     | ✅ All pass | Valid config, invalid multiples → domain error, Theory valid/invalid combos, no-persist on fail    |
 | ProjectTeamMemberCommandHandlerTests  | FR-016/017 | 13    | ✅ All pass | Add: happy path, project/lead/reportee not found, PM scope, dup → 409, circular. Remove: all paths |
+
+#### DTO Enrichment Tests — Phase 6 (5 tests)
+
+| Test File                             | FR-ID      | Tests | Status      | Key Scenarios Covered                                                                        |
+| ------------------------------------- | ---------- | ----- | ----------- | -------------------------------------------------------------------------------------------- |
+| ProjectDetailResponseEnrichmentTests  | FR-007     | 2     | ✅ All pass | Allocations collection populated on GetByCode, TeamMembers collection populated on GetByCode |
+| EmployeeDetailResponseEnrichmentTests | FR-007/009 | 3     | ✅ All pass | PM sees ManagedProjects, TeamLead sees ManagedProjects, no managed → empty list (not null)   |
 
 ### 1.4 Parameterized Test Breakdown
 
@@ -138,7 +145,7 @@
 | FR-007 | Create Employee              | 8 + 6 + 15 | 4 (create, dup code, dup email, staff 403)                    | ✅     |
 | FR-008 | Update Employee              | 10         | 2 (update, 404)                                               | ✅     |
 | FR-009 | List/Get Employees           | —          | 4 (list, get, /me)                                            | ✅     |
-| FR-010 | Create Allocation            | 7 + 11     | 3 (HR, PM, Staff 403) + 2 capacity                            | ✅     |
+| FR-010 | Create Allocation            | 12 + 11    | 3 (HR, PM, Staff 403) + 2 capacity                            | ✅     |
 | FR-011 | Get Allocation               | 8          | 2 (get, 404)                                                  | ✅     |
 | FR-012 | Update Allocation            | 7          | 2 (update, stop)                                              | ✅     |
 | FR-013 | Stop Allocation              | 6 + 6      | 1 (PATCH stop)                                                | ✅     |
@@ -160,11 +167,13 @@
 Application/
 ├── AddProjectTeamMemberCommandValidatorTests.cs    (6 tests)
 ├── CreateAccountCommandHandlerTests.cs             (5 tests)    ← NEW
-├── CreateAllocationCommandHandlerTests.cs          (7 tests)
+├── CreateAllocationCommandHandlerTests.cs          (12 tests)   ← +5 enrichment
 ├── CreateAllocationCommandValidatorTests.cs        (11 tests)
 ├── CreateEmployeeCommandHandlerTests.cs            (8 tests)    ← NEW
 ├── CreateEmployeeCommandValidatorTests.cs          (15 tests)
 ├── CreateProjectCommandHandlerTests.cs             (9 tests)    ← NEW
+├── EmployeeDetailResponseEnrichmentTests.cs        (3 tests)    ← NEW (enrichment)
+├── ProjectDetailResponseEnrichmentTests.cs         (2 tests)    ← NEW (enrichment)
 ├── ProjectTeamMemberCommandHandlerTests.cs         (13 tests)   ← NEW
 ├── RemoveAllocationCommandHandlerTests.cs          (7 tests)
 ├── SkillCommandHandlerTests.cs                     (8 tests)    ← NEW
@@ -208,17 +217,56 @@ Helpers/
 
 ## 5. Gaps & Recommendations
 
-| #   | Category            | Observation                                                                                             | Priority |
-| --- | ------------------- | ------------------------------------------------------------------------------------------------------- | -------- |
-| 1   | DELETE allocation   | Integration test for `DELETE /api/v1/allocations/{id}` not explicitly tested (unit tests cover handler) | Low      |
-| 2   | Pagination          | No integration tests for `?page=&pageSize=` query params on list endpoints                              | Medium   |
-| 3   | Search/Filter       | Employee search (`?search=`), project filter (`?status=`, `?accountId=`) not in integration suite       | Medium   |
-| 4   | Validation 400s     | Integration tests don't cover FluentValidation 400 responses (e.g. missing required fields)             | Low      |
-| 5   | Concurrent capacity | No concurrency test for two simultaneous allocations exceeding 100%                                     | Low      |
-| 6   | CSV export          | No tests for any CSV/export endpoints if they exist                                                     | Low      |
+| #   | Category                | Observation                                                                                                                     | Priority |
+| --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 1   | DELETE allocation       | Integration test for `DELETE /api/v1/allocations/{id}` not explicitly tested (unit tests cover handler)                         | Low      |
+| 2   | Pagination              | No integration tests for `?page=&pageSize=` query params on list endpoints                                                      | Medium   |
+| 3   | Search/Filter           | Employee search (`?search=`), project filter (`?status=`, `?accountId=`) not in integration suite                               | Medium   |
+| 4   | Validation 400s         | Integration tests don't cover FluentValidation 400 responses (e.g. missing required fields)                                     | Low      |
+| 5   | Concurrent capacity     | No concurrency test for two simultaneous allocations exceeding 100%                                                             | Low      |
+| 6   | CSV export              | No tests for any CSV/export endpoints if they exist                                                                             | Low      |
+| 7   | Empty project lists     | No unit test for `ProjectDetailResponse` with zero allocations and zero team members (empty list edge case)                     | Low      |
+| 8   | Allocation Status edges | No unit test for `ComputeAllocationStatus` returning "Upcoming" (future FromDate) or "Ended" (past ToDate) in isolation         | Low      |
+| 9   | Null Account fallback   | No test verifying `AllocationDetailResponse.AccountCode`/`AccountName` default to `string.Empty` when `Project.Account` is null | Low      |
 
 ---
 
-## 6. Conclusion
+## 6. Phase 6 — DTO Enrichment Validation
 
-The PAMS backend is covered by **246 executable tests** (187 unit + 59 integration) with **100% pass rate**. All 15 command handlers have dedicated unit tests. All 8 controllers have integration tests exercising CRUD operations and authorization policies across HR, PM, and Staff roles. The integration suite uses Testcontainers for a disposable PostgreSQL instance, ensuring tests are isolated and repeatable without external dependencies.
+### 6.1 Changes Verified
+
+| Change                                           | Implementation                                                                                                              | Tests                                                     | Status |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------ |
+| `AllocationDetailResponse` +6 properties         | ✅ CreateAllocationCommandHandler, UpdateAllocationCommandHandler, ProjectsController, EmployeesController                  | 5 new unit tests in CreateAllocationCommandHandlerTests   | ✅     |
+| `ProjectDetailResponse` +Allocations/TeamMembers | ✅ ProjectsController.GetByCode builds both collections                                                                     | 2 new unit tests in ProjectDetailResponseEnrichmentTests  | ✅     |
+| `EmployeeDetailResponse` +ManagedProjects        | ✅ EmployeesController.BuildEmployeeDetailResponse populates PM + TeamLead roles                                            | 3 new unit tests in EmployeeDetailResponseEnrichmentTests | ✅     |
+| New DTO `ManagedProjectItem`                     | ✅ 8 properties: ProjectId, ProjectCode, ProjectName, AccountCode, AccountName, ManagementRole, Status, ActiveResourceCount | Referenced correctly in 3 tests                           | ✅     |
+| `DashboardController` marked `[Obsolete]`        | ✅ Attribute with message: "Use enriched /projects/{code} and /employees/me instead. Will be removed in MVP2."              | Existing 6 integration tests still pass                   | ✅     |
+
+### 6.2 Validation Checks
+
+| Check                                                                                                                                                                                       | Result                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 5 allocation tests reference correct `AllocationDetailResponse` properties (`Designation`, `Billable`, `AccountCode`, `AccountName`, `Status`, `UpdatedAt`)                                 | ✅ Pass                                                                                                                                      |
+| 2 project tests correctly instantiate `ProjectDetailResponse` with `Allocations` (`IReadOnlyList<AllocationDetailResponse>`) and `TeamMembers` (`IReadOnlyList<ProjectTeamMemberResponse>`) | ✅ Pass                                                                                                                                      |
+| 3 employee tests correctly reference `ManagedProjectItem` DTO and `EmployeeDetailResponse.ManagedProjects` (`List<ManagedProjectItem>`)                                                     | ✅ Pass                                                                                                                                      |
+| Compile errors or namespace mismatches                                                                                                                                                      | ✅ None — zero errors across all 3 new/modified test files                                                                                   |
+| Handler implementations populate enriched fields                                                                                                                                            | ✅ `CreateAllocationCommandHandler` and `UpdateAllocationCommandHandler` both set all 6 new properties                                       |
+| Controller implementations populate enriched collections                                                                                                                                    | ✅ `ProjectsController.GetByCode` builds Allocations + TeamMembers; `EmployeesController.BuildEmployeeDetailResponse` builds ManagedProjects |
+| Edge case: empty ManagedProjects list (not null)                                                                                                                                            | ✅ `GetEmployeeDetail_NoManagedProjects_ShouldReturnEmptyList` covers this                                                                   |
+
+### 6.3 Recommended Additional Tests
+
+| #   | Test Description                                                                                                   | Priority |
+| --- | ------------------------------------------------------------------------------------------------------------------ | -------- |
+| 1   | `ProjectDetailResponse` with zero allocations and zero team members → verify empty lists (not null)                | Low      |
+| 2   | `ComputeAllocationStatus` edge cases: future FromDate → "Upcoming", past ToDate → "Ended" via dedicated unit tests | Low      |
+| 3   | `AllocationDetailResponse` when `Project.Account` is null → verify AccountCode/AccountName default to empty string | Low      |
+
+---
+
+## 7. Conclusion
+
+The PAMS backend is covered by **256 executable tests** (197 unit + 59 integration) with **100% pass rate**. All 15 command handlers have dedicated unit tests. All 8 controllers have integration tests exercising CRUD operations and authorization policies across HR, PM, and Staff roles. The integration suite uses Testcontainers for a disposable PostgreSQL instance, ensuring tests are isolated and repeatable without external dependencies.
+
+**Phase 6 enrichment** added 10 new unit tests across 3 files (5 in `CreateAllocationCommandHandlerTests`, 2 in `ProjectDetailResponseEnrichmentTests`, 3 in `EmployeeDetailResponseEnrichmentTests`). All tests compile cleanly and reference correct types, namespaces, and properties. The `DashboardController` is marked `[Obsolete]` with a deprecation path toward the enriched endpoints.

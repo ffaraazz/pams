@@ -298,3 +298,88 @@ New command handlers created during controller implementation phase do not yet h
 3. **Running the app:** `docker-compose up -d` → `dotnet run --project src/PAMS.API` → Swagger docs at `/swagger`.
 4. **Enum serialization:** `JsonStringEnumConverter` configured in Program.cs — all enums serialize as strings.
 5. **Navigation property loading:** All repositories include required navigation properties for their query methods.
+6. **AllocationDetailResponse.MapFrom:** Centralized static mapper eliminates DRY violations. Two overloads: `MapFrom(Allocation)` (nav props loaded) and `MapFrom(Allocation, Employee?, Project?)` (separately loaded entities).
+
+---
+
+## Enriched DTO Implementation (TDD Green Phase) — 2026-03-03
+
+### Tests Targeted (10 tests — all pass)
+
+| #   | Test File                               | Test Name                                                       |
+| --- | --------------------------------------- | --------------------------------------------------------------- |
+| 1   | `CreateAllocationCommandHandlerTests`   | `Handle_WhenAllocationCreated_ResponseShouldIncludeDesignation` |
+| 2   | `CreateAllocationCommandHandlerTests`   | `Handle_WhenAllocationCreated_ResponseShouldIncludeBillable`    |
+| 3   | `CreateAllocationCommandHandlerTests`   | `Handle_WhenAllocationCreated_ResponseShouldIncludeAccountInfo` |
+| 4   | `CreateAllocationCommandHandlerTests`   | `Handle_WhenAllocationCreated_ResponseShouldIncludeStatus`      |
+| 5   | `CreateAllocationCommandHandlerTests`   | `Handle_WhenAllocationCreated_ResponseShouldIncludeUpdatedAt`   |
+| 6   | `ProjectDetailResponseEnrichmentTests`  | `GetByCode_ShouldIncludeAllocationsInResponse`                  |
+| 7   | `ProjectDetailResponseEnrichmentTests`  | `GetByCode_ShouldIncludeTeamMembersInResponse`                  |
+| 8   | `EmployeeDetailResponseEnrichmentTests` | `GetEmployeeDetail_PM_ShouldIncludeManagedProjects`             |
+| 9   | `EmployeeDetailResponseEnrichmentTests` | `GetEmployeeDetail_TeamLead_ShouldIncludeManagedProjects`       |
+| 10  | `EmployeeDetailResponseEnrichmentTests` | `GetEmployeeDetail_NoManagedProjects_ShouldReturnEmptyList`     |
+
+### Files Modified
+
+| File                                                                                           | Change                                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/PAMS.Application/DTOs/Allocations/AllocationDetailResponse.cs`                            | Added 6 properties (`Designation`, `Billable`, `AccountCode`, `AccountName`, `Status`, `UpdatedAt`) + static `ComputeAllocationStatus` helper.                |
+| `src/PAMS.Application/DTOs/Projects/ProjectResponses.cs`                                       | Added `Allocations` and `TeamMembers` collections to `ProjectDetailResponse`.                                                                                 |
+| `src/PAMS.Application/DTOs/Employees/EmployeeResponses.cs`                                     | Added `ManagedProjects` list to `EmployeeDetailResponse`.                                                                                                     |
+| `src/PAMS.Application/Commands/Allocations/CreateAllocation/CreateAllocationCommandHandler.cs` | Updated response mapping with 6 new fields.                                                                                                                   |
+| `src/PAMS.Application/Commands/Allocations/UpdateAllocation/UpdateAllocationCommandHandler.cs` | Updated response mapping with 6 new fields.                                                                                                                   |
+| `src/PAMS.API/Controllers/AllocationsController.cs`                                            | Updated 3 inline builds (GetById, Stop, Remove) with enriched fields.                                                                                         |
+| `src/PAMS.API/Controllers/ProjectsController.cs`                                               | `GetByCode` now populates `Allocations` and `TeamMembers` from navigation properties.                                                                         |
+| `src/PAMS.API/Controllers/EmployeesController.cs`                                              | Injected `IProjectRepository` + `IProjectTeamMemberRepository`. `BuildEmployeeDetailResponse` now populates enriched allocation fields and `ManagedProjects`. |
+| `src/PAMS.API/Controllers/DashboardController.cs`                                              | Added `[Obsolete]` attribute. Updated 2 inline `AllocationDetailResponse` builds.                                                                             |
+
+### Files Created
+
+| File                                                        | Description                                                                                                                                               |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/PAMS.Application/DTOs/Employees/ManagedProjectItem.cs` | New DTO: `ProjectId`, `ProjectCode`, `ProjectName`, `AccountCode`, `AccountName`, `ManagementRole`, `Status` (ProjectStatus enum), `ActiveResourceCount`. |
+
+### Compilation
+
+All source and test files compile with zero errors.
+
+---
+
+## Code Review Fixes (CR-8, CR-9, CR-10, CR-12) — 2026-03-03
+
+### CR-8 (HIGH): ProjectRepository.GetByCodeAsync missing Includes
+
+- **File**: `src/PAMS.Infrastructure/Persistence/Repositories/ProjectRepository.cs`
+- **Issue**: `GetByCodeAsync` only included `Account` and `ProjectManager`. Allocations[] and TeamMembers[] in `ProjectDetailResponse` were always empty.
+- **Fix**: Added `.Include(p => p.Allocations).ThenInclude(a => a.Employee)`, `.Include(p => p.TeamMembers).ThenInclude(tm => tm.TeamLead)`, `.Include(p => p.TeamMembers).ThenInclude(tm => tm.Reportee)`.
+
+### CR-9 (HIGH): Missing Includes for ManagedProjects TeamLead query
+
+- **File**: `src/PAMS.Infrastructure/Persistence/Repositories/ProjectTeamMemberRepository.cs`
+- **Issue**: `GetByTeamLeadAsync` had no Includes — `Project`, `Account`, and `Allocations` navs were null when building `ManagedProjectItem` for team leads.
+- **Fix**: Added `.Include(ptm => ptm.Project).ThenInclude(p => p.Account)` and `.Include(ptm => ptm.Project).ThenInclude(p => p.Allocations)`.
+
+### CR-10 (MEDIUM): AllocationRepository missing Project.Account ThenInclude
+
+- **File**: `src/PAMS.Infrastructure/Persistence/Repositories/AllocationRepository.cs`
+- **Issue**: `GetByEmployeeAsync` included `Project` but not `Project.Account`. AccountCode/AccountName were empty in employee detail allocations.
+- **Fix**: Added `.ThenInclude(p => p.Account)` after `.Include(a => a.Project)`.
+
+### CR-12 (MEDIUM): DRY violation — centralized AllocationDetailResponse mapping
+
+- **File**: `src/PAMS.Application/DTOs/Allocations/AllocationDetailResponse.cs`
+- **Issue**: 9 places built `AllocationDetailResponse` inline with identical mapping logic.
+- **Fix**: Added two static `MapFrom` overloads:
+  - `MapFrom(Allocation)` — for use when all nav props are loaded.
+  - `MapFrom(Allocation, Employee?, Project?)` — for use when entities are loaded separately.
+- **Replaced inline builds in**:
+  - `AllocationsController.cs` — 3 sites (GetById, Stop, Remove)
+  - `ProjectsController.cs` — 1 site (GetByCode)
+  - `EmployeesController.cs` — 1 site (BuildEmployeeDetailResponse)
+  - `DashboardController.cs` — 2 sites (ProjectView, EmployeeView)
+  - `CreateAllocationCommandHandler.cs` — 1 site
+  - `UpdateAllocationCommandHandler.cs` — 1 site
+
+### Compilation
+
+All source and test files compile with zero errors. No test files were modified.

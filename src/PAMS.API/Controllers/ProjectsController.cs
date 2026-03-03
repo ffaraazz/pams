@@ -2,8 +2,10 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PAMS.Application.Commands.Projects;
+using PAMS.Application.DTOs.Allocations;
 using PAMS.Application.DTOs.Common;
 using PAMS.Application.DTOs.Projects;
+using PAMS.Application.DTOs.ProjectTeamMembers;
 using PAMS.Domain.Enums;
 using PAMS.Domain.Repositories;
 
@@ -113,6 +115,28 @@ public sealed class ProjectsController : ControllerBase
         var p = await _projectRepo.GetByCodeAsync(projectCode, ct);
         if (p is null) return NotFound();
 
+        var allocations = (p.Allocations ?? [])
+            .Where(a => a.DeletedAt == null)
+            .Select(a => AllocationDetailResponse.MapFrom(a, a.Employee, p))
+            .ToList();
+
+        var teamMembers = (p.TeamMembers ?? [])
+            .Select(tm => new ProjectTeamMemberResponse
+            {
+                Id = tm.Id,
+                ProjectId = tm.ProjectId,
+                ProjectCode = p.ProjectCode,
+                TeamLeadId = tm.TeamLeadId,
+                TeamLeadEmpCode = tm.TeamLead?.EmpCode ?? string.Empty,
+                TeamLeadFullName = tm.TeamLead is not null
+                    ? $"{tm.TeamLead.FirstName} {tm.TeamLead.LastName}" : string.Empty,
+                ReporteeId = tm.ReporteeId,
+                ReporteeEmpCode = tm.Reportee?.EmpCode ?? string.Empty,
+                ReporteeFullName = tm.Reportee is not null
+                    ? $"{tm.Reportee.FirstName} {tm.Reportee.LastName}" : string.Empty,
+                CreatedAt = tm.CreatedAt
+            }).ToList();
+
         return Ok(new ProjectDetailResponse
         {
             ProjectId = p.Id,
@@ -131,7 +155,9 @@ public sealed class ProjectsController : ControllerBase
             StartDate = p.StartDate,
             EndDate = p.EndDate,
             CreatedAt = p.CreatedAt,
-            UpdatedAt = p.UpdatedAt
+            UpdatedAt = p.UpdatedAt,
+            Allocations = allocations,
+            TeamMembers = teamMembers
         });
     }
 

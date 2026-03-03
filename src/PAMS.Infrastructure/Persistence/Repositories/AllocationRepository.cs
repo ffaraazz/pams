@@ -19,6 +19,7 @@ public sealed class AllocationRepository : IAllocationRepository
     public async Task<IReadOnlyList<Allocation>> GetByEmployeeAsync(Guid employeeId, CancellationToken ct = default)
         => await _context.Allocations
             .Include(a => a.Project)
+                .ThenInclude(p => p.Account)
             .Where(a => a.EmployeeId == employeeId)
             .OrderByDescending(a => a.FromDate)
             .ToListAsync(ct);

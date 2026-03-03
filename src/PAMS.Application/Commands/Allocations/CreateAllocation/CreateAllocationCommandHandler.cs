@@ -97,19 +97,6 @@ public sealed class CreateAllocationCommandHandler
         }, cancellationToken);
 
         // 7. Map response
-        return new AllocationDetailResponse
-        {
-            AllocationId = allocation.Id,
-            EmployeeId = employee.Id,
-            EmpCode = employee.EmpCode,
-            EmployeeName = $"{employee.FirstName} {employee.LastName}",
-            ProjectId = project.Id,
-            ProjectCode = project.ProjectCode,
-            ProjectName = project.ProjectName,
-            Percentage = allocation.Percentage,
-            FromDate = allocation.FromDate,
-            ToDate = allocation.ToDate,
-            CreatedAt = allocation.CreatedAt
-        };
+        return AllocationDetailResponse.MapFrom(allocation, employee, project);
     }
 }

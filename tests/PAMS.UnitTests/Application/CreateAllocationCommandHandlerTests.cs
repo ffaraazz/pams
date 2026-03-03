@@ -309,6 +309,233 @@ public sealed class CreateAllocationCommandHandlerTests
             Arg.Any<CancellationToken>());
     }
 
+    // ─── Enriched AllocationDetailResponse Tests (TDD Red Phase) ────────────
+    // These tests reference properties that do not yet exist on AllocationDetailResponse.
+    // They will fail to compile until the DTO is enriched — expected TDD behavior.
+
+    [Fact(DisplayName = "FR-010 | Handle_WhenAllocationCreated_ResponseShouldIncludeDesignation")]
+    public async Task Handle_WhenAllocationCreated_ResponseShouldIncludeDesignation()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var hrId = Guid.NewGuid();
+
+        var project = CreateActiveProject(projectId, TestData.ProjectCode, hrId);
+        project.ProjectName.Returns("Alpha Project");
+
+        var employee = CreateActiveEmployee(employeeId, TestData.StaffEmpCode);
+        employee.Designation.Returns("Senior Developer");
+        employee.FirstName.Returns("Jane");
+        employee.LastName.Returns("Doe");
+
+        _currentUser.Role.Returns(PAMS.Domain.Enums.EmployeeRole.HR);
+        _currentUser.EmployeeId.Returns(hrId);
+
+        _projectRepo.GetByCodeAsync(TestData.ProjectCode, Arg.Any<CancellationToken>())
+            .Returns(project);
+        _employeeRepo.GetByEmpCodeAsync(TestData.StaffEmpCode, Arg.Any<CancellationToken>())
+            .Returns(employee);
+        _allocationRepo.GetOverlappingAsync(employeeId, Arg.Any<DateOnly>(), Arg.Any<DateOnly?>(), Arg.Any<CancellationToken>())
+            .Returns(new List<PAMS.Domain.Entities.Allocation>());
+
+        var command = new PAMS.Application.Commands.Allocations.CreateAllocationCommand
+        {
+            ProjectCode = TestData.ProjectCode,
+            EmpCode = TestData.StaffEmpCode,
+            Percentage = 50,
+            FromDate = TestData.Today,
+            ToDate = null
+        };
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.Handle(command, CancellationToken.None);
+
+        // Assert — Designation should come from Employee.Designation
+        result.Designation.Should().Be("Senior Developer");
+    }
+
+    [Fact(DisplayName = "FR-010 | Handle_WhenAllocationCreated_ResponseShouldIncludeBillable")]
+    public async Task Handle_WhenAllocationCreated_ResponseShouldIncludeBillable()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var hrId = Guid.NewGuid();
+
+        var project = CreateActiveProject(projectId, TestData.ProjectCode, hrId);
+        project.ProjectName.Returns("Alpha Project");
+        project.Billable.Returns(true);
+
+        var employee = CreateActiveEmployee(employeeId, TestData.StaffEmpCode);
+        employee.FirstName.Returns("Jane");
+        employee.LastName.Returns("Doe");
+
+        _currentUser.Role.Returns(PAMS.Domain.Enums.EmployeeRole.HR);
+        _currentUser.EmployeeId.Returns(hrId);
+
+        _projectRepo.GetByCodeAsync(TestData.ProjectCode, Arg.Any<CancellationToken>())
+            .Returns(project);
+        _employeeRepo.GetByEmpCodeAsync(TestData.StaffEmpCode, Arg.Any<CancellationToken>())
+            .Returns(employee);
+        _allocationRepo.GetOverlappingAsync(employeeId, Arg.Any<DateOnly>(), Arg.Any<DateOnly?>(), Arg.Any<CancellationToken>())
+            .Returns(new List<PAMS.Domain.Entities.Allocation>());
+
+        var command = new PAMS.Application.Commands.Allocations.CreateAllocationCommand
+        {
+            ProjectCode = TestData.ProjectCode,
+            EmpCode = TestData.StaffEmpCode,
+            Percentage = 50,
+            FromDate = TestData.Today,
+            ToDate = null
+        };
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.Handle(command, CancellationToken.None);
+
+        // Assert — Billable should come from Project.Billable
+        result.Billable.Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "FR-010 | Handle_WhenAllocationCreated_ResponseShouldIncludeAccountInfo")]
+    public async Task Handle_WhenAllocationCreated_ResponseShouldIncludeAccountInfo()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var hrId = Guid.NewGuid();
+
+        var project = CreateActiveProject(projectId, TestData.ProjectCode, hrId);
+        project.ProjectName.Returns("Alpha Project");
+        var account = Substitute.For<PAMS.Domain.Entities.Account>();
+        account.AccountCode.Returns("ACC001");
+        account.AccountName.Returns("Acme Corp");
+        project.Account.Returns(account);
+
+        var employee = CreateActiveEmployee(employeeId, TestData.StaffEmpCode);
+        employee.FirstName.Returns("Jane");
+        employee.LastName.Returns("Doe");
+
+        _currentUser.Role.Returns(PAMS.Domain.Enums.EmployeeRole.HR);
+        _currentUser.EmployeeId.Returns(hrId);
+
+        _projectRepo.GetByCodeAsync(TestData.ProjectCode, Arg.Any<CancellationToken>())
+            .Returns(project);
+        _employeeRepo.GetByEmpCodeAsync(TestData.StaffEmpCode, Arg.Any<CancellationToken>())
+            .Returns(employee);
+        _allocationRepo.GetOverlappingAsync(employeeId, Arg.Any<DateOnly>(), Arg.Any<DateOnly?>(), Arg.Any<CancellationToken>())
+            .Returns(new List<PAMS.Domain.Entities.Allocation>());
+
+        var command = new PAMS.Application.Commands.Allocations.CreateAllocationCommand
+        {
+            ProjectCode = TestData.ProjectCode,
+            EmpCode = TestData.StaffEmpCode,
+            Percentage = 50,
+            FromDate = TestData.Today,
+            ToDate = null
+        };
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.Handle(command, CancellationToken.None);
+
+        // Assert — AccountCode and AccountName should come from Project.Account
+        result.AccountCode.Should().Be("ACC001");
+        result.AccountName.Should().Be("Acme Corp");
+    }
+
+    [Fact(DisplayName = "FR-010 | Handle_WhenAllocationCreated_ResponseShouldIncludeStatus")]
+    public async Task Handle_WhenAllocationCreated_ResponseShouldIncludeStatus()
+    {
+        // Arrange — FromDate = today, ToDate = null → computed Status = "Active"
+        var projectId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var hrId = Guid.NewGuid();
+
+        var project = CreateActiveProject(projectId, TestData.ProjectCode, hrId);
+        project.ProjectName.Returns("Alpha Project");
+
+        var employee = CreateActiveEmployee(employeeId, TestData.StaffEmpCode);
+        employee.FirstName.Returns("Jane");
+        employee.LastName.Returns("Doe");
+
+        _currentUser.Role.Returns(PAMS.Domain.Enums.EmployeeRole.HR);
+        _currentUser.EmployeeId.Returns(hrId);
+
+        _projectRepo.GetByCodeAsync(TestData.ProjectCode, Arg.Any<CancellationToken>())
+            .Returns(project);
+        _employeeRepo.GetByEmpCodeAsync(TestData.StaffEmpCode, Arg.Any<CancellationToken>())
+            .Returns(employee);
+        _allocationRepo.GetOverlappingAsync(employeeId, Arg.Any<DateOnly>(), Arg.Any<DateOnly?>(), Arg.Any<CancellationToken>())
+            .Returns(new List<PAMS.Domain.Entities.Allocation>());
+
+        var command = new PAMS.Application.Commands.Allocations.CreateAllocationCommand
+        {
+            ProjectCode = TestData.ProjectCode,
+            EmpCode = TestData.StaffEmpCode,
+            Percentage = 50,
+            FromDate = TestData.Today,
+            ToDate = null
+        };
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.Handle(command, CancellationToken.None);
+
+        // Assert — Status is computed: "Active" when FromDate <= today && (ToDate == null || ToDate >= today)
+        result.Status.Should().Be("Active");
+    }
+
+    [Fact(DisplayName = "FR-010 | Handle_WhenAllocationCreated_ResponseShouldIncludeUpdatedAt")]
+    public async Task Handle_WhenAllocationCreated_ResponseShouldIncludeUpdatedAt()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var hrId = Guid.NewGuid();
+
+        var project = CreateActiveProject(projectId, TestData.ProjectCode, hrId);
+        project.ProjectName.Returns("Alpha Project");
+
+        var employee = CreateActiveEmployee(employeeId, TestData.StaffEmpCode);
+        employee.FirstName.Returns("Jane");
+        employee.LastName.Returns("Doe");
+
+        _currentUser.Role.Returns(PAMS.Domain.Enums.EmployeeRole.HR);
+        _currentUser.EmployeeId.Returns(hrId);
+
+        _projectRepo.GetByCodeAsync(TestData.ProjectCode, Arg.Any<CancellationToken>())
+            .Returns(project);
+        _employeeRepo.GetByEmpCodeAsync(TestData.StaffEmpCode, Arg.Any<CancellationToken>())
+            .Returns(employee);
+        _allocationRepo.GetOverlappingAsync(employeeId, Arg.Any<DateOnly>(), Arg.Any<DateOnly?>(), Arg.Any<CancellationToken>())
+            .Returns(new List<PAMS.Domain.Entities.Allocation>());
+
+        var command = new PAMS.Application.Commands.Allocations.CreateAllocationCommand
+        {
+            ProjectCode = TestData.ProjectCode,
+            EmpCode = TestData.StaffEmpCode,
+            Percentage = 50,
+            FromDate = TestData.Today,
+            ToDate = null
+        };
+
+        var sut = CreateSut();
+        var before = DateTime.UtcNow;
+
+        // Act
+        var result = await sut.Handle(command, CancellationToken.None);
+
+        // Assert — UpdatedAt should be set to approximately now
+        result.UpdatedAt.Should().BeOnOrAfter(before);
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private static PAMS.Domain.Entities.Project CreateActiveProject(Guid id, string code, Guid pmId)

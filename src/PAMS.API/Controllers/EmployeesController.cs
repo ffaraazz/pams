@@ -24,17 +24,23 @@ public sealed class EmployeesController : ControllerBase
     private readonly IMediator _mediator;
     private readonly IEmployeeRepository _employeeRepo;
     private readonly IAllocationRepository _allocationRepo;
+    private readonly IProjectRepository _projectRepo;
+    private readonly IProjectTeamMemberRepository _teamMemberRepo;
     private readonly ICurrentUserService _currentUser;
 
     public EmployeesController(
         IMediator mediator,
         IEmployeeRepository employeeRepo,
         IAllocationRepository allocationRepo,
+        IProjectRepository projectRepo,
+        IProjectTeamMemberRepository teamMemberRepo,
         ICurrentUserService currentUser)
     {
         _mediator = mediator;
         _employeeRepo = employeeRepo;
         _allocationRepo = allocationRepo;
+        _projectRepo = projectRepo;
+        _teamMemberRepo = teamMemberRepo;
         _currentUser = currentUser;
     }
 
@@ -273,6 +279,60 @@ public sealed class EmployeesController : ControllerBase
         var totalPct = activeAllocations.Sum(a => a.Percentage);
         var availability = Math.Max(0, 100 - totalPct);
 
+        // Build managed projects list (PM role + TeamLead role)
+        var managedProjects = new List<ManagedProjectItem>();
+
+        // Projects where employee is ProjectManager
+        if (employee.ManagedProjects is not null)
+        {
+            foreach (var p in employee.ManagedProjects)
+            {
+                var activeCount = (p.Allocations ?? (ICollection<Domain.Entities.Allocation>)[])
+                    .Count(a => a.DeletedAt == null && a.FromDate <= today && (a.ToDate == null || a.ToDate >= today));
+
+                managedProjects.Add(new ManagedProjectItem
+                {
+                    ProjectId = p.Id,
+                    ProjectCode = p.ProjectCode,
+                    ProjectName = p.ProjectName,
+                    AccountCode = p.Account?.AccountCode ?? string.Empty,
+                    AccountName = p.Account?.AccountName ?? string.Empty,
+                    ManagementRole = "ProjectManager",
+                    Status = p.Status,
+                    ActiveResourceCount = activeCount
+                });
+            }
+        }
+
+        // Projects where employee is TeamLead (via ProjectTeamMembers)
+        var teamLeadAssignments = await _teamMemberRepo.GetByTeamLeadAsync(employee.Id, ct);
+        var teamLeadProjectIds = teamLeadAssignments
+            .Select(tm => tm.ProjectId)
+            .Distinct()
+            .Where(pid => !managedProjects.Any(mp => mp.ProjectId == pid));
+
+        foreach (var pid in teamLeadProjectIds)
+        {
+            var tlProject = teamLeadAssignments.FirstOrDefault(tm => tm.ProjectId == pid)?.Project;
+            if (tlProject is not null)
+            {
+                var activeCount = (tlProject.Allocations ?? (ICollection<Domain.Entities.Allocation>)[])
+                    .Count(a => a.DeletedAt == null && a.FromDate <= today && (a.ToDate == null || a.ToDate >= today));
+
+                managedProjects.Add(new ManagedProjectItem
+                {
+                    ProjectId = tlProject.Id,
+                    ProjectCode = tlProject.ProjectCode,
+                    ProjectName = tlProject.ProjectName,
+                    AccountCode = tlProject.Account?.AccountCode ?? string.Empty,
+                    AccountName = tlProject.Account?.AccountName ?? string.Empty,
+                    ManagementRole = "TeamLead",
+                    Status = tlProject.Status,
+                    ActiveResourceCount = activeCount
+                });
+            }
+        }
+
         return new EmployeeDetailResponse
         {
             EmployeeId = employee.Id,
@@ -297,20 +357,10 @@ public sealed class EmployeesController : ControllerBase
                 SkillName = es.Skill?.SkillName ?? string.Empty,
                 IsActive = es.Skill?.IsActive ?? false
             }).ToList(),
-            CurrentAllocations = filtered.Select(a => new AllocationDetailResponse
-            {
-                AllocationId = a.Id,
-                EmployeeId = a.EmployeeId,
-                EmpCode = employee.EmpCode,
-                EmployeeName = $"{employee.FirstName} {employee.LastName}",
-                ProjectId = a.ProjectId,
-                ProjectCode = a.Project?.ProjectCode ?? string.Empty,
-                ProjectName = a.Project?.ProjectName ?? string.Empty,
-                Percentage = a.Percentage,
-                FromDate = a.FromDate,
-                ToDate = a.ToDate,
-                CreatedAt = a.CreatedAt
-            }).ToList(),
+            CurrentAllocations = filtered
+                .Select(a => AllocationDetailResponse.MapFrom(a, employee, a.Project))
+                .ToList(),
+            ManagedProjects = managedProjects,
             CreatedAt = employee.CreatedAt,
             UpdatedAt = employee.UpdatedAt
         };

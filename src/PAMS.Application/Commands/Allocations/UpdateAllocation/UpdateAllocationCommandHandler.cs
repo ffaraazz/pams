@@ -87,19 +87,6 @@ public sealed class UpdateAllocationCommandHandler
             allocation.ToDate
         }, cancellationToken);
 
-        return new AllocationDetailResponse
-        {
-            AllocationId = allocation.Id,
-            EmployeeId = allocation.EmployeeId,
-            EmpCode = employee?.EmpCode ?? string.Empty,
-            EmployeeName = employee is not null ? $"{employee.FirstName} {employee.LastName}" : string.Empty,
-            ProjectId = project.Id,
-            ProjectCode = project.ProjectCode,
-            ProjectName = project.ProjectName,
-            Percentage = allocation.Percentage,
-            FromDate = allocation.FromDate,
-            ToDate = allocation.ToDate,
-            CreatedAt = allocation.CreatedAt
-        };
+        return AllocationDetailResponse.MapFrom(allocation, employee, project);
     }
 }

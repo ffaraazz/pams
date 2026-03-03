@@ -4,14 +4,14 @@
 
 ## 1. Document Control
 
-| Field          | Value                                               |
-| -------------- | --------------------------------------------------- |
-| Project        | Project Allocation Management System (PAMS)         |
-| Version        | 1.3.0                                               |
-| Date           | 2026-03-03                                          |
-| Author         | BusinessAnalyst (GitHub Copilot)                    |
-| Status         | Updated – Identity Resolution & Stop Allocation Fix |
-| Pipeline State | Phase 1 – Specification Updated                     |
+| Field          | Value                                                    |
+| -------------- | -------------------------------------------------------- |
+| Project        | Project Allocation Management System (PAMS)              |
+| Version        | 1.4.0                                                    |
+| Date           | 2026-03-03                                               |
+| Author         | BusinessAnalyst (GitHub Copilot)                         |
+| Status         | Updated – Enriched API Responses & Dashboard Deprecation |
+| Pipeline State | Phase 1 – Specification Updated                          |
 
 ---
 
@@ -326,6 +326,9 @@ Delivery is split into two phases:
 - AC-005-3: Changing status to `Completed` when active, future-dated allocations exist → warning displayed; user must confirm to proceed. Active allocations are not automatically ended.
 - AC-005-4: Status lifecycle: `Upcoming → Active → Completed`. Direct transition from `Upcoming` to `Completed` is allowed.
 - AC-005-5: `billable` flag is editable. Changing it does not affect existing allocations.
+- AC-005-6: Response MUST include `Allocations[]` — a list of all active allocations for the project, using the enriched `AllocationDetailResponse` (see FR-010 AC-010-8 through AC-010-12).
+- AC-005-7: Response MUST include `TeamMembers[]` — a list of all team-lead/reportee assignments for the project, using `ProjectTeamMemberResponse`.
+- AC-005-8: A PM can see full detail of their own projects; other roles see projects filtered by authorization.
 
 **Negative / Edge Cases:**
 
@@ -478,6 +481,11 @@ Delivery is split into two phases:
 - AC-010-5: Project Manager can only allocate to projects they manage (where they are set as `projectManager`).
 - AC-010-6: HR can allocate to any active project.
 - AC-010-7: On success, allocation is immediately reflected in Employee View and Project View.
+- AC-010-8: Response MUST include `Designation` (from the allocated Employee entity).
+- AC-010-9: Response MUST include `Billable` (from the associated Project entity).
+- AC-010-10: Response MUST include `AccountCode` and `AccountName` (from the Project's linked Account entity).
+- AC-010-11: Response MUST include `Status` — computed as: `Active` if `FromDate <= today` and (`ToDate` is null or `ToDate >= today`); `Upcoming` if `FromDate > today`; `Ended` if `ToDate < today`.
+- AC-010-12: Response MUST include `UpdatedAt` (from the Allocation entity).
 
 **Negative / Edge Cases:**
 
@@ -910,6 +918,38 @@ Delivery is split into two phases:
 
 ---
 
+### FR-024 – My Managed Projects
+
+| Field          | Value                                                                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Priority       | P0 (Must Have)                                                                                                                                                            |
+| Persona        | Staff, Project Manager                                                                                                                                                    |
+| Description    | When viewing own profile via `/employees/me`, the response includes a list of projects the user manages (as PM or as TeamLead with reportees).                            |
+| Trigger        | User calls `GET /employees/me`.                                                                                                                                           |
+| Preconditions  | User is authenticated.                                                                                                                                                    |
+| Postconditions | Response includes `ManagedProjects[]` array with enriched project summary data.                                                                                           |
+| User Story     | As a Staff or PM user, I want to see which projects I manage (as PM or Team Lead) when viewing my own profile, so I have a single view of my management responsibilities. |
+
+**Acceptance Criteria:**
+
+- AC-024-1: Response MUST include `ManagedProjects[]` array.
+- AC-024-2: Each managed project MUST include: `ProjectCode`, `ProjectName`, `AccountCode`, `AccountName`, `ManagementRole` (`ProjectManager` | `TeamLead`), `Status`, `ActiveResourceCount`.
+- AC-024-3: For PMs, includes all projects where the user is the assigned `ProjectManager`.
+- AC-024-4: For Staff with team-lead assignments, includes projects where the user has reportees in `ProjectTeamMembers`.
+- AC-024-5: For HR, includes projects where the user is PM (if any).
+- AC-024-6: `ManagedProjects` must be an empty array (not null) if the user manages no projects.
+
+**Negative / Edge Cases:**
+
+- User with no PM or Team Lead assignments → `ManagedProjects` is `[]`.
+- User who is both PM on Project A and Team Lead on Project B → both appear with their respective `ManagementRole`.
+
+**Data Entities:** Employee, Project, Account, ProjectTeamMember  
+**Screens:** My Profile / `/employees/me` endpoint  
+**Dependencies:** FR-007, FR-004, FR-020
+
+---
+
 ## 9. Non-Functional Requirements
 
 ### Performance
@@ -1280,11 +1320,13 @@ Delivery is split into two phases:
 
 ## 13. Integration Requirements
 
-| Integration       | Direction       | Details                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Failure Handling                                                                                                                                    |
-| ----------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Authentication    | Keycloak → PAMS | OAuth2/OIDC. Keycloak is the Authorization Server and identity provider. PAMS is a resource server that validates Bearer tokens via Keycloak's JWKS endpoint. Roles (`HR`, `ProjectManager`, `Staff`) are mapped from Keycloak realm roles. Future migration path: swap Keycloak Authority URL for Azure AD / Entra ID. PAMS resolves the authenticated user's Employee ID by matching the JWT `empCode` claim against the employees table. The `sub` claim is used as a primary lookup only if it matches an existing employee GUID; otherwise `empCode` is the authoritative identity bridge. | Token validation failure returns HTTP 401; client redirects to Keycloak login page. Keycloak unavailability must not block read-only health checks. |
-| Audit Log         | PAMS → Store    | Structured log entries for all mutations; written synchronously                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Log failure must not abort primary operation but must be alerted                                                                                    |
-| Skill Master Data | Internal CRUD   | Managed within PAMS; no external integration in MVP                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | N/A                                                                                                                                                 |
+| Integration               | Direction       | Details                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Failure Handling                                                                                                                                    |
+| ------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authentication            | Keycloak → PAMS | OAuth2/OIDC. Keycloak is the Authorization Server and identity provider. PAMS is a resource server that validates Bearer tokens via Keycloak's JWKS endpoint. Roles (`HR`, `ProjectManager`, `Staff`) are mapped from Keycloak realm roles. Future migration path: swap Keycloak Authority URL for Azure AD / Entra ID. PAMS resolves the authenticated user's Employee ID by matching the JWT `empCode` claim against the employees table. The `sub` claim is used as a primary lookup only if it matches an existing employee GUID; otherwise `empCode` is the authoritative identity bridge. | Token validation failure returns HTTP 401; client redirects to Keycloak login page. Keycloak unavailability must not block read-only health checks. |
+| Audit Log                 | PAMS → Store    | Structured log entries for all mutations; written synchronously                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Log failure must not abort primary operation but must be alerted                                                                                    |
+| Skill Master Data         | Internal CRUD   | Managed within PAMS; no external integration in MVP                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | N/A                                                                                                                                                 |
+| Dashboard (Project View)  | DEPRECATED      | `/dashboard/project-view` — **DEPRECATED**. Replaced by enriched `GET /projects/{code}` which now embeds `Allocations[]` and `TeamMembers[]` directly in the `ProjectDetailResponse` (see FR-005 AC-005-6, AC-005-7).                                                                                                                                                                                                                                                                                                                                                                           | N/A                                                                                                                                                 |
+| Dashboard (Employee View) | DEPRECATED      | `/dashboard/employee-view` — **DEPRECATED**. Replaced by `GET /employees` + `GET /employees/me` which now provide all data previously served by this endpoint (see FR-024).                                                                                                                                                                                                                                                                                                                                                                                                                     | N/A                                                                                                                                                 |
 
 ---
 
@@ -1373,3 +1415,4 @@ Delivery is split into two phases:
 | FR-021 | System Configuration                           | P1       | HR       | Settings Screen                                | Draft  |
 | FR-022 | PM Allocation Dashboard _(MVP1)_               | P0       | PM       | PM Allocation Dashboard                        | Draft  |
 | FR-023 | Employee Self-Manage Skills _(MVP2)_           | P1       | Staff,PM | My Profile → Skills Panel                      | Draft  |
+| FR-024 | My Managed Projects (`/employees/me`)          | P0       | Staff,PM | My Profile / `/employees/me`                   | Draft  |

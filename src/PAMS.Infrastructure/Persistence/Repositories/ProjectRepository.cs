@@ -24,6 +24,12 @@ public sealed class ProjectRepository : IProjectRepository
         => await _context.Projects
             .Include(p => p.Account)
             .Include(p => p.ProjectManager)
+            .Include(p => p.Allocations)
+                .ThenInclude(a => a.Employee)
+            .Include(p => p.TeamMembers)
+                .ThenInclude(tm => tm.TeamLead)
+            .Include(p => p.TeamMembers)
+                .ThenInclude(tm => tm.Reportee)
             .FirstOrDefaultAsync(p => p.ProjectCode.ToLower() == projectCode.ToLower(), ct);
 
     public async Task<bool> CodeExistsAsync(string projectCode, CancellationToken ct = default)

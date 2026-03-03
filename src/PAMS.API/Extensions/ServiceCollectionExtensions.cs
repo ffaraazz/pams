@@ -46,7 +46,6 @@ public static class ServiceCollectionExtensions
         services.AddAuthorizationBuilder()
             .AddPolicy("HROnly", policy => policy.RequireRole("HR"))
             .AddPolicy("CanAllocate", policy => policy.RequireRole("HR", "ProjectManager"))
-            .AddPolicy("CanViewDashboard", policy => policy.RequireRole("HR", "ProjectManager"))
             .AddPolicy("AuthenticatedUser", policy => policy.RequireAuthenticatedUser());
 
         // CORS

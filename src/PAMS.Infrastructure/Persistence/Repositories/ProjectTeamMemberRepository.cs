@@ -20,6 +20,10 @@ public sealed class ProjectTeamMemberRepository : IProjectTeamMemberRepository
 
     public async Task<IReadOnlyList<ProjectTeamMember>> GetByTeamLeadAsync(Guid teamLeadId, CancellationToken ct = default)
         => await _context.ProjectTeamMembers
+            .Include(ptm => ptm.Project)
+                .ThenInclude(p => p.Account)
+            .Include(ptm => ptm.Project)
+                .ThenInclude(p => p.Allocations)
             .Where(ptm => ptm.TeamLeadId == teamLeadId)
             .ToListAsync(ct);
 
