@@ -68,7 +68,9 @@ public sealed class StopAllocationCommandHandler : IRequestHandler<StopAllocatio
         var stopDate = stopService.ComputeStopDate(allocation.FromDate, today);
 
         // 6. Apply stop date
-        allocation.ToDate = stopDate;
+        // When cancelling a future allocation (stopDate < fromDate), use fromDate
+        // to satisfy DB constraint chk_allocation_dates (to_date >= from_date).
+        allocation.ToDate = stopDate < allocation.FromDate ? allocation.FromDate : stopDate;
         allocation.UpdatedAt = DateTime.UtcNow;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
