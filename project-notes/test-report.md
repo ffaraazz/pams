@@ -1,7 +1,7 @@
 # PAMS — Comprehensive Test Report
 
 **Author**: TestEngineer (QA Validation)  
-**Date**: 2026-02-27  
+**Date**: 2026-03-03  
 **Solution**: PAMS.slnx (.NET 10.0)  
 **Test Frameworks**: xUnit 2.9.2, FluentAssertions 7.0.0, NSubstitute 5.3.0, Bogus 35.6.1  
 **Integration Stack**: Microsoft.AspNetCore.Mvc.Testing 10.0.0, Testcontainers.PostgreSql 3.10.0
@@ -12,10 +12,10 @@
 
 | Metric                   | Value         |
 | ------------------------ | ------------- |
-| **Total Tests**          | **245**       |
-| **Unit Tests**           | 186           |
+| **Total Tests**          | **246**       |
+| **Unit Tests**           | 187           |
 | **Integration Tests**    | 59            |
-| **Passed**               | **245**       |
+| **Passed**               | **246**       |
 | **Failed**               | 0             |
 | **Skipped**              | 0             |
 | **Build Warnings**       | 0             |
@@ -26,7 +26,7 @@
 
 ---
 
-## 1. Unit Tests — 186 Passed
+## 1. Unit Tests — 187 Passed
 
 ### 1.1 Domain Layer (28 tests)
 
@@ -45,14 +45,14 @@
 | CreateEmployeeCommandValidatorTests       | FR-007 | 15    | ✅ All pass |
 | AddProjectTeamMemberCommandValidatorTests | FR-020 | 6     | ✅ All pass |
 
-### 1.3 Application Layer — Command Handlers (126 tests)
+### 1.3 Application Layer — Command Handlers (127 tests)
 
-#### Pre-existing Handlers (40 tests)
+#### Pre-existing Handlers (41 tests)
 
 | Test File                           | FR-ID  | Tests | Status      |
 | ----------------------------------- | ------ | ----- | ----------- |
 | CreateAllocationCommandHandlerTests | FR-010 | 7     | ✅ All pass |
-| StopAllocationCommandHandlerTests   | FR-013 | 5     | ✅ All pass |
+| StopAllocationCommandHandlerTests   | FR-013 | 6     | ✅ All pass |
 | RemoveAllocationCommandHandlerTests | FR-014 | 7     | ✅ All pass |
 | UpdateAllocationCommandHandlerTests | FR-012 | 7     | ✅ All pass |
 | CreateProjectCommandHandlerTests    | FR-003 | 9     | ✅ All pass |
@@ -141,7 +141,7 @@
 | FR-010 | Create Allocation            | 7 + 11     | 3 (HR, PM, Staff 403) + 2 capacity                            | ✅     |
 | FR-011 | Get Allocation               | 8          | 2 (get, 404)                                                  | ✅     |
 | FR-012 | Update Allocation            | 7          | 2 (update, stop)                                              | ✅     |
-| FR-013 | Stop Allocation              | 5 + 6      | 1 (PATCH stop)                                                | ✅     |
+| FR-013 | Stop Allocation              | 6 + 6      | 1 (PATCH stop)                                                | ✅     |
 | FR-014 | Remove Allocation            | 7          | —                                                             | ✅     |
 | FR-015 | System Config (alias FR-006) | ↑ merged   | ↑ merged                                                      | ✅     |
 | FR-016 | Add Team Member              | 8          | 4 (add, staff, list, unknown project)                         | ✅     |
@@ -168,7 +168,7 @@ Application/
 ├── ProjectTeamMemberCommandHandlerTests.cs         (13 tests)   ← NEW
 ├── RemoveAllocationCommandHandlerTests.cs          (7 tests)
 ├── SkillCommandHandlerTests.cs                     (8 tests)    ← NEW
-├── StopAllocationCommandHandlerTests.cs            (5 tests)
+├── StopAllocationCommandHandlerTests.cs            (6 tests)
 ├── UpdateAccountCommandHandlerTests.cs             (7 tests)    ← NEW
 ├── UpdateAllocationCommandHandlerTests.cs          (7 tests)    ← NEW
 ├── UpdateEmployeeCommandHandlerTests.cs            (10 tests)   ← NEW
@@ -221,4 +221,4 @@ Helpers/
 
 ## 6. Conclusion
 
-The PAMS backend is covered by **245 executable tests** (186 unit + 59 integration) with **100% pass rate**. All 15 command handlers have dedicated unit tests. All 8 controllers have integration tests exercising CRUD operations and authorization policies across HR, PM, and Staff roles. The integration suite uses Testcontainers for a disposable PostgreSQL instance, ensuring tests are isolated and repeatable without external dependencies.
+The PAMS backend is covered by **246 executable tests** (187 unit + 59 integration) with **100% pass rate**. All 15 command handlers have dedicated unit tests. All 8 controllers have integration tests exercising CRUD operations and authorization policies across HR, PM, and Staff roles. The integration suite uses Testcontainers for a disposable PostgreSQL instance, ensuring tests are isolated and repeatable without external dependencies.

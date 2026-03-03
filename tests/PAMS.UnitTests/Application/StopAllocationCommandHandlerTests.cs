@@ -224,4 +224,48 @@ public sealed class StopAllocationCommandHandlerTests
             Arg.Any<object>(),
             Arg.Any<CancellationToken>());
     }
+
+    // ─── FR-013 / Fix: Future allocation — constraint-safe stop date ─────
+
+    [Fact(DisplayName = "FR-013 | Handle_FutureAllocation_ShouldSetToDateToFromDate")]
+    public async Task Handle_FutureAllocation_ShouldSetToDateToFromDate()
+    {
+        // Arrange — allocation starts 30 days in the future (fromDate > today)
+        var allocationId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var hrId = Guid.NewGuid();
+        var futureFromDate = DateOnly.FromDateTime(DateTime.Today).AddDays(30);
+
+        var allocation = Substitute.For<PAMS.Domain.Entities.Allocation>();
+        allocation.Id.Returns(allocationId);
+        allocation.ProjectId.Returns(projectId);
+        allocation.FromDate.Returns(futureFromDate);
+        allocation.ToDate.Returns((DateOnly?)null);
+
+        var project = Substitute.For<PAMS.Domain.Entities.Project>();
+        project.Id.Returns(projectId);
+        project.ProjectManagerId.Returns(hrId);
+
+        _currentUser.Role.Returns(PAMS.Domain.Enums.EmployeeRole.HR);
+        _currentUser.EmployeeId.Returns(hrId);
+
+        _allocationRepo.GetByIdAsync(allocationId, Arg.Any<CancellationToken>())
+            .Returns(allocation);
+
+        _projectRepo.GetByIdAsync(projectId, Arg.Any<CancellationToken>())
+            .Returns(project);
+
+        var command = new PAMS.Application.Commands.Allocations.StopAllocationCommand
+        {
+            AllocationId = allocationId
+        };
+
+        var sut = CreateSut();
+
+        // Act
+        await sut.Handle(command, CancellationToken.None);
+
+        // Assert — when fromDate > today, ToDate must equal FromDate (not raw stop date)
+        allocation.Received(1).ToDate = futureFromDate;
+    }
 }

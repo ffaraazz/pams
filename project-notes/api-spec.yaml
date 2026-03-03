@@ -1,11 +1,12 @@
 openapi: 3.1.0
 info:
   title: Project Allocation Management System (PAMS) API
-  version: 1.4.0
+  version: 1.6.0
   description: |
     REST API for the Project Allocation Management System.
     All endpoints require a Keycloak-issued OIDC Bearer token unless stated otherwise.
     Obtain tokens via the Keycloak Authorization Code flow at the configured realm (`/realms/pams`).
+    Identity resolution uses the `empCode` JWT claim for Keycloak-to-PAMS identity bridging (sub claim verified against employees table with empCode fallback).
     Dates use ISO 8601 `YYYY-MM-DD` format. Timestamps use UTC (`YYYY-MM-DDTHH:MM:SSZ`).
 
     **Pagination (NFR-18/19):** All list endpoints support `page` (default 1) and `limit` (default 10, max 100).
@@ -650,7 +651,7 @@ paths:
       summary: Get authenticated user's own profile (all roles)
       description: |
         Returns the full employee detail for the currently authenticated user.
-        Replaces the former `/auth/me` endpoint. Uses the employee ID from the Keycloak token `sub` claim.
+        Resolves the authenticated user via the `empCode` JWT claim and database lookup. See NFR-22 for identity resolution details.
       operationId: employees_me
       parameters:
         - name: windowFrom
@@ -675,72 +676,6 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /employees/me/allocations:
-    get:
-      tags: [Employees]
-      summary: Get own allocations, optionally with team data (all roles – Staff access, FR-022)
-      description: |
-        Returns the authenticated user's own allocations.
-        For Project Managers: set `includeTeam=true` to also receive a `myTeam` array
-        containing reportee allocations grouped by project (for projects where the PM
-        is configured as a Team Lead via project_team_members).
-        This replaces the need for a separate PM Allocation Dashboard endpoint.
-      operationId: employees_me_allocations
-      parameters:
-        - name: includeEnded
-          in: query
-          schema:
-            type: boolean
-            default: false
-          description: Include ended (past) allocations.
-        - name: includeTeam
-          in: query
-          schema:
-            type: boolean
-            default: false
-          description: "PM only. When true, includes a `myTeam` array with reportees' allocations grouped by project (FR-022). Ignored for non-PM roles."
-      responses:
-        "200":
-          description: |
-            Authenticated user's allocations. When `includeTeam=true` for a PM, response
-            uses `PMAllocationDashboardResponse` shape; otherwise returns a plain allocation array.
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - type: object
-                    description: Default response (includeTeam=false or non-PM)
-                    properties:
-                      allocations:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/AllocationDetailResponse"
-                  - $ref: "#/components/schemas/PMAllocationDashboardResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
-  /employees/me/team/allocations:
-    get:
-      tags: [Employees]
-      summary: Get project-scoped reportees' allocations (Staff / PM with team lead assignments)
-      description: |
-        Returns allocations grouped by project for each project where the authenticated user
-        is configured as a Team Lead (via project_team_members). Each group contains only
-        the reportees assigned to the user on that specific project.
-        If the user has no team lead assignments, returns an empty array.
-      operationId: employees_me_team_allocations
-      responses:
-        "200":
-          description: Read-only allocation list for each reportee grouped by project
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ProjectTeamAllocationsGrouped"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
   # ── EMPLOYEE SELF-MANAGE SKILLS (FR-023 – MVP2) ───────────────────────────
 
   /employees/me/skills:
@@ -748,8 +683,9 @@ paths:
       tags: [Employees]
       summary: Get own skills (Staff, PM – MVP2)
       description: |
+        ⚠️ MVP2 — Not yet implemented. No controller endpoint exists. Specification only.
+
         Returns the authenticated employee's current skill tags.
-        MVP2 feature — returns 501 Not Implemented until MVP2 feature flag is enabled.
       operationId: employees_me_skills_list
       responses:
         "200":
@@ -762,26 +698,16 @@ paths:
                   $ref: "#/components/schemas/SkillResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "501":
-          description: MVP2 feature not yet enabled
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-              example:
-                type: "https://pams.internal/errors/ERR_FEATURE_NOT_AVAILABLE"
-                title: Not Implemented
-                status: 501
-                detail: "Self-manage skills is an MVP2 feature and is not yet enabled."
 
     post:
       tags: [Employees]
       summary: Add a skill to own profile (Staff, PM – MVP2)
       description: |
+        ⚠️ MVP2 — Not yet implemented. No controller endpoint exists. Specification only.
+
         Adds an existing master skill to the authenticated employee's profile.
         Only active skills from the HR-managed master skill list can be added.
         Duplicate additions are silently ignored.
-        MVP2 feature — returns 501 until MVP2 feature flag is enabled.
       operationId: employees_me_skills_add
       requestBody:
         required: true
@@ -815,12 +741,6 @@ paths:
                 title: Unprocessable Entity
                 status: 422
                 detail: "This skill is no longer active and cannot be added."
-        "501":
-          description: MVP2 feature not yet enabled
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
 
   /employees/me/skills/{skillId}:
     parameters:
@@ -835,9 +755,10 @@ paths:
       tags: [Employees]
       summary: Remove a skill from own profile (Staff, PM – MVP2)
       description: |
+        ⚠️ MVP2 — Not yet implemented. No controller endpoint exists. Specification only.
+
         Removes the specified skill tag from the authenticated employee's profile.
         Does not affect any allocation records.
-        MVP2 feature — returns 501 until MVP2 feature flag is enabled.
       operationId: employees_me_skills_remove
       responses:
         "204":
@@ -846,12 +767,6 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "501":
-          description: MVP2 feature not yet enabled
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
 
   # ── SKILLS ─────────────────────────────────────────────────────────────────
 
@@ -1070,7 +985,7 @@ paths:
       summary: Stop an allocation (HR, PM)
       description: |
         Stops an active or upcoming allocation.
-        If allocation has not yet started (fromDate > today): sets toDate = today.
+        If allocation has not yet started (fromDate > today): sets toDate = fromDate (satisfies chk_allocation_dates constraint).
         If allocation is active (fromDate ≤ today): sets toDate = tomorrow.
         PM can only stop allocations on their own projects.
         Request body: `{"action": "stop"}`.
@@ -1519,14 +1434,6 @@ components:
         Partial = >0% and <100% allocated.
         Full = 100% allocated on at least one day in the window.
 
-    AllocationRecordStatus:
-      type: string
-      enum: [Active, Upcoming, Ended]
-      description: |
-        Active = fromDate ≤ today ≤ toDate (or toDate is null).
-        Upcoming = fromDate > today.
-        Ended = toDate < today.
-
     # ── Problem Details ────────────────────────────────────────────────────
 
     ProblemDetails:
@@ -1645,14 +1552,6 @@ components:
           type: integer
           description: "Computed: count of inactive/completed projects under this account."
           examples: [1]
-        totalActiveEmployees:
-          type: integer
-          description: "Computed: count of distinct active employees with current allocations on this account's projects."
-          examples: [12]
-        totalInactiveEmployees:
-          type: integer
-          description: "Computed: count of distinct inactive employees who had allocations on this account's projects."
-          examples: [2]
 
     AccountResponse:
       allOf:
@@ -1959,24 +1858,6 @@ components:
           type: boolean
           description: "Set to false to deactivate. Active allocations are NOT automatically ended."
 
-    EmployeeAllocationsGrouped:
-      type: object
-      description: An employee's identity + their allocations. Used within ProjectTeamAllocationsGrouped and legacy views.
-      properties:
-        employeeId:
-          type: string
-          format: uuid
-        empCode:
-          type: string
-        fullName:
-          type: string
-        designation:
-          type: string
-        allocations:
-          type: array
-          items:
-            $ref: "#/components/schemas/AllocationDetailResponse"
-
     # ── Project Team Members (FR-020) ──────────────────────────────────────
 
     ProjectTeamMemberResponse:
@@ -2021,25 +1902,6 @@ components:
           type: string
           maxLength: 50
           description: Employee code of the reportee. Must differ from teamLeadEmpCode.
-
-    ProjectTeamAllocationsGrouped:
-      type: object
-      description: |
-        A project with the Team Lead's reportees and their allocations.
-        Used in the "My Team" section of Staff/PM dashboards (FR-019, FR-022).
-      properties:
-        projectId:
-          type: string
-          format: uuid
-        projectCode:
-          type: string
-        projectName:
-          type: string
-        reportees:
-          type: array
-          items:
-            $ref: "#/components/schemas/EmployeeAllocationsGrouped"
-          description: Reportees assigned to the authenticated user as Team Lead on this project.
 
     # ── Skill ──────────────────────────────────────────────────────────────
 
@@ -2094,9 +1956,7 @@ components:
           format: uuid
         empCode:
           type: string
-        employeeFullName:
-          type: string
-        employeeDesignation:
+        employeeName:
           type: string
         projectId:
           type: string
@@ -2105,10 +1965,10 @@ components:
           type: string
         projectName:
           type: string
-        accountCode:
-          type: string
-        accountName:
-          type: string
+        percentage:
+          type: integer
+          minimum: 1
+          maximum: 100
         fromDate:
           type: string
           format: date
@@ -2116,21 +1976,7 @@ components:
           type: ["string", "null"]
           format: date
           description: Null indicates an open-ended allocation.
-        percentage:
-          type: integer
-          minimum: 1
-          maximum: 100
-        status:
-          $ref: "#/components/schemas/AllocationRecordStatus"
-        allocatedByEmpCode:
-          type: string
-        deletedAt:
-          type: ["string", "null"]
-          format: date-time
         createdAt:
-          type: string
-          format: date-time
-        updatedAt:
           type: string
           format: date-time
 
@@ -2299,23 +2145,6 @@ components:
             $ref: "#/components/schemas/EmployeeViewItem"
         pagination:
           $ref: "#/components/schemas/PaginationMeta"
-
-    PMAllocationDashboardResponse:
-      type: object
-      description: "PM Allocation Dashboard (FR-022): own allocations + optional My Team section."
-      properties:
-        myAllocations:
-          type: array
-          items:
-            $ref: "#/components/schemas/AllocationDetailResponse"
-          description: "The authenticated PM's own allocations (as an allocatee)."
-        myTeam:
-          type: array
-          items:
-            $ref: "#/components/schemas/ProjectTeamAllocationsGrouped"
-          description: |
-            Present only if the PM is configured as a Team Lead on one or more projects.
-            Each entry groups reportees by project. Empty array if no team lead assignments.
 
     # ── System Config ──────────────────────────────────────────────────────
 

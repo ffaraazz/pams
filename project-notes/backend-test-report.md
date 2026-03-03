@@ -1,7 +1,7 @@
 # Backend Test Report
 
 **Generated**: Phase 4 — BackendDeveloper  
-**Date**: 2025-07-23 (updated)  
+**Date**: 2026-03-03  
 **Solution**: PAMS.slnx (.NET 10.0)  
 **Test Framework**: xUnit 2.9.3, FluentAssertions 7.0.0, NSubstitute 5.3.0
 
@@ -11,8 +11,8 @@
 
 | Metric         | Value |
 | -------------- | ----- |
-| Unit Tests     | 100   |
-| Passed         | 100   |
+| Unit Tests     | 101   |
+| Passed         | 101   |
 | Failed         | 0     |
 | Skipped        | 0     |
 | Build Warnings | 0     |
@@ -34,12 +34,12 @@
 | ReportingChainValidatorTests   | FR-007 | 6     | ✅ All pass |
 | TeamLeadValidatorTests         | FR-020 | 8     | ✅ All pass |
 
-### Application Layer — Handlers (19 tests)
+### Application Layer — Handlers (20 tests)
 
 | Test File                           | FR-ID  | Tests | Status      |
 | ----------------------------------- | ------ | ----- | ----------- |
 | CreateAllocationCommandHandlerTests | FR-010 | 7     | ✅ All pass |
-| StopAllocationCommandHandlerTests   | FR-013 | 5     | ✅ All pass |
+| StopAllocationCommandHandlerTests   | FR-013 | 6     | ✅ All pass |
 | RemoveAllocationCommandHandlerTests | FR-014 | 7     | ✅ All pass |
 
 ### Application Layer — Validators (32 tests)
@@ -268,8 +268,26 @@ New command handlers created during controller implementation phase do not yet h
 | Application       | ✅ Complete | 15 commands, 15 handlers, 3 validators, 13 DTO types                |
 | Infrastructure    | ✅ Complete | DbContext, 9 configs, 7 repos, 3 services, 2 seeders, migration     |
 | API               | ✅ Complete | 8 controllers, 29 endpoints, middleware, auth, Program.cs           |
-| Unit Tests        | ✅ Complete | 100/100 pass (covers original 3 handlers + 3 validators + 4 domain) |
+| Unit Tests        | ✅ Complete | 101/101 pass (covers original 3 handlers + 3 validators + 4 domain) |
 | Integration Tests | ⬜ Pending  | Testcontainers.PostgreSql setup needed                              |
+
+---
+
+## Bug Fixes (2026-03-03)
+
+### 10. CurrentUserService identity resolution fix
+
+- **File**: `src/PAMS.Infrastructure/Services/CurrentUserService.cs`
+- **Issue**: `EmployeeId` relied solely on `sub` claim from JWT, which may not match DB employee IDs when Keycloak user IDs differ from PAMS employee IDs.
+- **Fix**: Multi-step resolution: (1) try `sub` claim → verify exists in DB, (2) fallback to `empCode` claim → DB lookup by `EmpCode`, (3) cache result per-request via `_cachedEmployeeId` field. Constructor now takes `PamsDbContext` as additional dependency.
+- **Impact**: Fixes 401/403 errors for users whose Keycloak `sub` doesn't match their PAMS employee ID.
+
+### 11. StopAllocationCommandHandler constraint-safe stop date
+
+- **File**: `src/PAMS.Application/Commands/Allocations/StopAllocationCommandHandler.cs`
+- **Issue**: When stopping a future allocation (fromDate > today), `AllocationStopService` returns `today` as the stop date, but setting `ToDate = today` violates the `chk_allocation_dates` DB constraint (`ToDate >= FromDate`).
+- **Fix**: Guard assignment: `allocation.ToDate = stopDate < allocation.FromDate ? allocation.FromDate : stopDate;`
+- **Test**: New unit test `Handle_FutureAllocation_ShouldSetToDateToFromDate` verifies the guard.
 
 ---
 

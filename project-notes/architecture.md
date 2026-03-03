@@ -7,8 +7,8 @@
 | Field          | Value                                       |
 | -------------- | ------------------------------------------- |
 | Project        | Project Allocation Management System (PAMS) |
-| Version        | 1.4.0                                       |
-| Date           | 2026-02-26                                  |
+| Version        | 1.5.0                                       |
+| Date           | 2026-03-03                                  |
 | Author         | ProductArchitect (GitHub Copilot)           |
 | Status         | Approved for Implementation                 |
 | Pipeline State | Phase 2 – Architecture Complete             |
@@ -164,6 +164,8 @@ Orchestrates domain objects. Depends on **Domain** only (via interfaces). Contai
 - Commands: mutate state; wrapped in `TransactionBehavior` (DB transaction + audit log)
 - Queries: read-only; bypass transaction behavior; may use raw SQL / Dapper for complex dashboards
 
+> **StopAllocationCommandHandler constraint-safe stop date logic:** When domain service returns a stop date earlier than `allocation.FromDate` (cancelling a future allocation), the handler uses `FromDate` as `ToDate` to satisfy DB constraint `chk_allocation_dates` (`to_date >= from_date`).
+
 ---
 
 ### 4.3 PAMS.Infrastructure
@@ -180,7 +182,7 @@ Implements interfaces defined in Domain and Application. Depends on both.
   - `UnitOfWork.cs`
   - `Seed/` – `SystemConfigSeeder`, `SkillSeeder` (invoked at startup in dev/staging)
 - `Services/`
-  - `CurrentUserService.cs` – reads `IHttpContextAccessor`; implements `ICurrentUserService`
+  - `CurrentUserService.cs` – reads JWT claims from `IHttpContextAccessor` and resolves authenticated user's Employee ID via `PamsDbContext` database lookup. Identity resolution strategy: (1) try `sub` claim → verify GUID exists in employees table, (2) fallback to `empCode` claim → find employee by EmpCode, (3) cache resolved ID per-request. Depends on `IHttpContextAccessor` and `PamsDbContext`.
   - `DateTimeProvider.cs` – wraps `DateOnly.FromDateTime(DateTime.UtcNow)` for testability
   - `AuditLogService.cs` – writes to `audit_logs` table; never throws to caller
 - `Extensions/`
@@ -196,6 +198,19 @@ Implements interfaces defined in Domain and Application. Depends on both.
 - Partial index on `allocations`: `WHERE deleted_at IS NULL` for capacity computation
 - `AuditLog` table append-only; no Repository pattern needed — `DbContext.Add()` directly from `AuditLogService`
 - `ProjectTeamMember` table: composite unique constraint `(project_id, team_lead_id, reportee_id)`; check constraint `team_lead_id != reportee_id`; indexes on `project_id`, `team_lead_id`, `reportee_id`
+
+### Identity Resolution Flow (Keycloak → PAMS)
+
+1. JWT Bearer token arrives with claims: `sub` (Keycloak internal UUID), `empCode` (custom attribute), `realm_access.roles`
+2. CurrentUserService.EmployeeId getter:
+   a. Check `sub` claim → parse as GUID → query `employees` table by ID → if exists, use it
+   b. Fallback: read `empCode` claim → query `employees` table by EmpCode → use resulting ID
+   c. Cache resolved GUID for remainder of HTTP request (scoped lifetime)
+3. CurrentUserService.Role: maps Keycloak realm roles (HR, ProjectManager) to EmployeeRole enum
+4. All command handlers use ICurrentUserService.EmployeeId for:
+   - PM scope enforcement (project ownership check)
+   - Audit log `performedById` field
+   - Allocation `allocatedById` foreign key
 
 ---
 

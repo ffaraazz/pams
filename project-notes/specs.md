@@ -4,14 +4,14 @@
 
 ## 1. Document Control
 
-| Field          | Value                                       |
-| -------------- | ------------------------------------------- |
-| Project        | Project Allocation Management System (PAMS) |
-| Version        | 1.2.0                                       |
-| Date           | 2026-02-26                                  |
-| Author         | BusinessAnalyst (GitHub Copilot)            |
-| Status         | Updated – Billable & Status Enum Revamp     |
-| Pipeline State | Phase 1 – Specification Updated             |
+| Field          | Value                                               |
+| -------------- | --------------------------------------------------- |
+| Project        | Project Allocation Management System (PAMS)         |
+| Version        | 1.3.0                                               |
+| Date           | 2026-03-03                                          |
+| Author         | BusinessAnalyst (GitHub Copilot)                    |
+| Status         | Updated – Identity Resolution & Stop Allocation Fix |
+| Pipeline State | Phase 1 – Specification Updated                     |
 
 ---
 
@@ -570,6 +570,7 @@ Delivery is split into two phases:
 - AC-013-3: Confirmation dialog shown before stop: "Employee will be released from [Project Name] from [effective date]. Confirm?"
 - AC-013-4: After stop, allocation remains visible in history with ended status.
 - AC-013-5: PM cannot stop allocations on projects they do not manage.
+- AC-013-6: When stopping a future allocation (`fromDate` > today), the system must set `toDate` = `fromDate` (not today) to satisfy the database constraint that `toDate >= fromDate`.
 
 **Negative / Edge Cases:**
 
@@ -955,12 +956,13 @@ Delivery is split into two phases:
 
 ### API Design Standards
 
-| ID     | Requirement                                                                                                                                                                                                                                                                                        |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NFR-18 | **Pagination (mandatory):** All list endpoints must support `page` (integer, min 1, default **1**) and `limit` (integer, min 1, max 100, default **10**) query parameters. Every paginated response must include a `pagination` object with fields: `page`, `limit`, `totalRecords`, `totalPages`. |
-| NFR-19 | **Pagination defaults:** If `page` and/or `limit` are omitted the server applies defaults (page=1, limit=10). Unbounded list responses are prohibited.                                                                                                                                             |
-| NFR-20 | **Single-endpoint strategy:** Each resource uses one endpoint for listing, searching, and filtering. Separate `/search` endpoints must not be created. Filtering is via query parameters e.g. `GET /employees?search=John&role=Staff&page=1&limit=10`.                                             |
-| NFR-21 | **Role-based response shaping:** API responses must be filtered server-side based on the authenticated user's role extracted from the Keycloak token. Client-side role checking is supplementary only.                                                                                             |
+| ID     | Requirement                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NFR-18 | **Pagination (mandatory):** All list endpoints must support `page` (integer, min 1, default **1**) and `limit` (integer, min 1, max 100, default **10**) query parameters. Every paginated response must include a `pagination` object with fields: `page`, `limit`, `totalRecords`, `totalPages`.                                                                                           |
+| NFR-19 | **Pagination defaults:** If `page` and/or `limit` are omitted the server applies defaults (page=1, limit=10). Unbounded list responses are prohibited.                                                                                                                                                                                                                                       |
+| NFR-20 | **Single-endpoint strategy:** Each resource uses one endpoint for listing, searching, and filtering. Separate `/search` endpoints must not be created. Filtering is via query parameters e.g. `GET /employees?search=John&role=Staff&page=1&limit=10`.                                                                                                                                       |
+| NFR-21 | **Role-based response shaping:** API responses must be filtered server-side based on the authenticated user's role extracted from the Keycloak token. Client-side role checking is supplementary only.                                                                                                                                                                                       |
+| NFR-22 | **User Identity Resolution:** PAMS must resolve the authenticated user's internal Employee ID from the JWT `empCode` claim via database lookup when the `sub` claim does not match a known employee. The resolved identity must be cached per-request for performance. This enables Keycloak-to-application identity bridging without requiring Keycloak's `sub` to match PAMS employee IDs. |
 
 **Standard paginated response envelope:**
 
@@ -1278,11 +1280,11 @@ Delivery is split into two phases:
 
 ## 13. Integration Requirements
 
-| Integration       | Direction       | Details                                                                                                                                                                                                                                                                                                                 | Failure Handling                                                                                                                                    |
-| ----------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Authentication    | Keycloak → PAMS | OAuth2/OIDC. Keycloak is the Authorization Server and identity provider. PAMS is a resource server that validates Bearer tokens via Keycloak's JWKS endpoint. Roles (`HR`, `ProjectManager`, `Staff`) are mapped from Keycloak realm roles. Future migration path: swap Keycloak Authority URL for Azure AD / Entra ID. | Token validation failure returns HTTP 401; client redirects to Keycloak login page. Keycloak unavailability must not block read-only health checks. |
-| Audit Log         | PAMS → Store    | Structured log entries for all mutations; written synchronously                                                                                                                                                                                                                                                         | Log failure must not abort primary operation but must be alerted                                                                                    |
-| Skill Master Data | Internal CRUD   | Managed within PAMS; no external integration in MVP                                                                                                                                                                                                                                                                     | N/A                                                                                                                                                 |
+| Integration       | Direction       | Details                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Failure Handling                                                                                                                                    |
+| ----------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authentication    | Keycloak → PAMS | OAuth2/OIDC. Keycloak is the Authorization Server and identity provider. PAMS is a resource server that validates Bearer tokens via Keycloak's JWKS endpoint. Roles (`HR`, `ProjectManager`, `Staff`) are mapped from Keycloak realm roles. Future migration path: swap Keycloak Authority URL for Azure AD / Entra ID. PAMS resolves the authenticated user's Employee ID by matching the JWT `empCode` claim against the employees table. The `sub` claim is used as a primary lookup only if it matches an existing employee GUID; otherwise `empCode` is the authoritative identity bridge. | Token validation failure returns HTTP 401; client redirects to Keycloak login page. Keycloak unavailability must not block read-only health checks. |
+| Audit Log         | PAMS → Store    | Structured log entries for all mutations; written synchronously                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Log failure must not abort primary operation but must be alerted                                                                                    |
+| Skill Master Data | Internal CRUD   | Managed within PAMS; no external integration in MVP                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | N/A                                                                                                                                                 |
 
 ---
 
@@ -1301,7 +1303,7 @@ Delivery is split into two phases:
 - A-01: Each employee has exactly one role (HR, ProjectManager, or Staff); roles do not overlap.
 - A-02: An employee with role `ProjectManager` is not excluded from being allocated to projects.
 - A-03: The `Bench` account type is a special reserved account used to represent employees who are on bench; projects under the Bench account behave like regular projects for allocation purposes.
-- A-04: Keycloak is the designated identity provider. PAMS receives and validates OIDC Bearer tokens issued by Keycloak. PAMS stores no passwords. The Keycloak realm, client (`pams-api`), and role mappings (`HR`, `ProjectManager`, `Staff`) must be provisioned before PAMS can authenticate any user.
+- A-04: Keycloak is the designated identity provider. PAMS receives and validates OIDC Bearer tokens issued by Keycloak. PAMS stores no passwords. The Keycloak realm, client (`pams-api`), and role mappings (`HR`, `ProjectManager`, `Staff`) must be provisioned before PAMS can authenticate any user. Each Keycloak user must have an `empCode` attribute that matches exactly one employee record in PAMS. This is required for identity resolution.
 - A-05: A skill is a single string tag (e.g., "Android", "Java"); no skill hierarchy in MVP.
 - A-06: Date range computation uses calendar days; weekends and holidays are not excluded.
 - A-07: "Today" is computed from server time (UTC or configured timezone—architect decision).
