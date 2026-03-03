@@ -313,8 +313,8 @@ public sealed class CreateAllocationCommandHandlerTests
     // These tests reference properties that do not yet exist on AllocationDetailResponse.
     // They will fail to compile until the DTO is enriched — expected TDD behavior.
 
-    [Fact(DisplayName = "FR-010 | Handle_WhenAllocationCreated_ResponseShouldIncludeDesignation")]
-    public async Task Handle_WhenAllocationCreated_ResponseShouldIncludeDesignation()
+    [Fact(DisplayName = "FR-010 | Handle_WhenAllocationCreated_ResponseShouldIncludeProjectRole")]
+    public async Task Handle_WhenAllocationCreated_ResponseShouldIncludeProjectRole()
     {
         // Arrange
         var projectId = Guid.NewGuid();
@@ -325,7 +325,6 @@ public sealed class CreateAllocationCommandHandlerTests
         project.ProjectName.Returns("Alpha Project");
 
         var employee = CreateActiveEmployee(employeeId, TestData.StaffEmpCode);
-        employee.Designation.Returns("Senior Developer");
         employee.FirstName.Returns("Jane");
         employee.LastName.Returns("Doe");
 
@@ -345,6 +344,51 @@ public sealed class CreateAllocationCommandHandlerTests
             EmpCode = TestData.StaffEmpCode,
             Percentage = 50,
             FromDate = TestData.Today,
+            ToDate = null,
+            ProjectRole = "Architect"
+        };
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.Handle(command, CancellationToken.None);
+
+        // Assert — ProjectRole should come from command.ProjectRole
+        result.ProjectRole.Should().Be("Architect");
+    }
+
+    [Fact(DisplayName = "FR-010 | Handle_WhenProjectRoleNotProvided_ResponseShouldHaveNullProjectRole")]
+    public async Task Handle_WhenProjectRoleNotProvided_ResponseShouldHaveNullProjectRole()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var hrId = Guid.NewGuid();
+
+        var project = CreateActiveProject(projectId, TestData.ProjectCode, hrId);
+        project.ProjectName.Returns("Alpha Project");
+
+        var employee = CreateActiveEmployee(employeeId, TestData.StaffEmpCode);
+        employee.FirstName.Returns("Jane");
+        employee.LastName.Returns("Doe");
+
+        _currentUser.Role.Returns(PAMS.Domain.Enums.EmployeeRole.HR);
+        _currentUser.EmployeeId.Returns(hrId);
+
+        _projectRepo.GetByCodeAsync(TestData.ProjectCode, Arg.Any<CancellationToken>())
+            .Returns(project);
+        _employeeRepo.GetByEmpCodeAsync(TestData.StaffEmpCode, Arg.Any<CancellationToken>())
+            .Returns(employee);
+        _allocationRepo.GetOverlappingAsync(employeeId, Arg.Any<DateOnly>(), Arg.Any<DateOnly?>(), Arg.Any<CancellationToken>())
+            .Returns(new List<PAMS.Domain.Entities.Allocation>());
+
+        // Note: ProjectRole is NOT set on the command
+        var command = new PAMS.Application.Commands.Allocations.CreateAllocationCommand
+        {
+            ProjectCode = TestData.ProjectCode,
+            EmpCode = TestData.StaffEmpCode,
+            Percentage = 50,
+            FromDate = TestData.Today,
             ToDate = null
         };
 
@@ -353,8 +397,8 @@ public sealed class CreateAllocationCommandHandlerTests
         // Act
         var result = await sut.Handle(command, CancellationToken.None);
 
-        // Assert — Designation should come from Employee.Designation
-        result.Designation.Should().Be("Senior Developer");
+        // Assert — ProjectRole should be null when not provided
+        result.ProjectRole.Should().BeNull();
     }
 
     [Fact(DisplayName = "FR-010 | Handle_WhenAllocationCreated_ResponseShouldIncludeBillable")]

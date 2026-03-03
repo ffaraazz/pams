@@ -39,6 +39,10 @@ public sealed class AllocationConfiguration : IEntityTypeConfiguration<Allocatio
             .HasColumnType("smallint")
             .IsRequired();
 
+        builder.Property(a => a.ProjectRole)
+            .HasColumnName("project_role")
+            .HasMaxLength(150);
+
         builder.Property(a => a.AllocatedById)
             .HasColumnName("allocated_by_id")
             .IsRequired();

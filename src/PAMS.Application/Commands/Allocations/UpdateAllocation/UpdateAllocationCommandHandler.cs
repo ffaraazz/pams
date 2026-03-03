@@ -72,6 +72,8 @@ public sealed class UpdateAllocationCommandHandler
         allocation.FromDate = request.FromDate;
         allocation.ToDate = request.ToDate;
         allocation.Percentage = request.Percentage;
+        if (request.ProjectRole is not null)
+            allocation.ProjectRole = request.ProjectRole;
         allocation.UpdatedAt = DateTime.UtcNow;
 
         _allocationRepo.Update(allocation);

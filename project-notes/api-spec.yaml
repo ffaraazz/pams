@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Project Allocation Management System (PAMS) API
-  version: 1.8.0
+  version: 1.9.0
   description: |
     REST API for the Project Allocation Management System.
     All endpoints require a Keycloak-issued OIDC Bearer token unless stated otherwise.
@@ -15,7 +15,7 @@ info:
     **Consolidated REST design:** Deactivation is handled via PUT (state change), allocation stop via PATCH, allocation remove via DELETE (soft-delete).
     **Billable flag & project status:** Projects carry a `billable` boolean (defaults to true for Client accounts) and a lifecycle `status` (Upcoming → Active → Completed). Both HR and PM (scoped to own projects) can modify status.
     **Code-based identifiers:** Path parameters use unique business codes (`accountCode`, `projectCode`, `empCode`) instead of UUIDs for human-readable URLs. Allocations and skills use UUID (no natural business code). Responses include both UUIDs and codes.
-    **Enriched DTOs (v1.7.0):** Resource endpoints now embed related data — ProjectResponse includes allocations and team members, EmployeeDetailResponse includes managedProjects, AllocationDetailResponse includes designation/billable/account/status. Dashboard endpoints have been removed (v1.8.0) in favor of enriched resource endpoints.
+    **Enriched DTOs (v1.7.0):** Resource endpoints now embed related data — ProjectResponse includes allocations and team members, EmployeeDetailResponse includes managedProjects, AllocationDetailResponse includes projectRole/billable/account/status. Dashboard endpoints have been removed (v1.8.0) in favor of enriched resource endpoints.
   contact:
     name: PAMS Engineering
   license:
@@ -1905,9 +1905,9 @@ components:
           type: string
         employeeName:
           type: string
-        designation:
-          type: string
-          description: "Employee's designation/title"
+        projectRole:
+          type: ["string", "null"]
+          description: "Role the employee performs on this project (e.g., Architect, Tech Lead, Developer). Null if not specified."
         projectId:
           type: string
           format: uuid
@@ -1972,6 +1972,9 @@ components:
           maximum: 100
           description: Must be ≥ minAllocationPct and a multiple of allocationIncrement.
           examples: [50]
+        projectRole:
+          type: ["string", "null"]
+          description: "Optional project-specific role"
 
     UpdateAllocationRequest:
       type: object
@@ -1987,6 +1990,9 @@ components:
           type: integer
           minimum: 1
           maximum: 100
+        projectRole:
+          type: ["string", "null"]
+          description: "Optional project-specific role update"
 
     CapacityCheckResponse:
       type: object

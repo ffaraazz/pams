@@ -18,7 +18,7 @@ public sealed record AllocationDetailResponse
     public DateOnly FromDate { get; init; }
     public DateOnly? ToDate { get; init; }
     public DateTime CreatedAt { get; init; }
-    public string Designation { get; init; } = string.Empty;
+    public string? ProjectRole { get; init; }
     public bool Billable { get; init; }
     public string AccountCode { get; init; } = string.Empty;
     public string AccountName { get; init; } = string.Empty;
@@ -54,7 +54,7 @@ public sealed record AllocationDetailResponse
             EmpCode = employee?.EmpCode ?? string.Empty,
             EmployeeName = employee is not null
                 ? $"{employee.FirstName} {employee.LastName}" : string.Empty,
-            Designation = employee?.Designation ?? string.Empty,
+            ProjectRole = allocation.ProjectRole,
             ProjectId = allocation.ProjectId,
             ProjectCode = project?.ProjectCode ?? string.Empty,
             ProjectName = project?.ProjectName ?? string.Empty,

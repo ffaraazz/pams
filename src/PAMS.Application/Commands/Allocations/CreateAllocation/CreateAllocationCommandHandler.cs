@@ -77,6 +77,7 @@ public sealed class CreateAllocationCommandHandler
             FromDate = request.FromDate,
             ToDate = request.ToDate,
             Percentage = request.Percentage,
+            ProjectRole = request.ProjectRole,
             AllocatedById = _currentUser.EmployeeId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

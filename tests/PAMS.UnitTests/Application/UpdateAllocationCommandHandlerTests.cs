@@ -295,6 +295,54 @@ public sealed class UpdateAllocationCommandHandlerTests
         await act.Should().NotThrowAsync();
     }
 
+    // ─── FR-012 | ProjectRole updated ────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-012 | Handle_WhenAllocationUpdated_ProjectRoleShouldBeUpdated")]
+    public async Task Handle_WhenAllocationUpdated_ProjectRoleShouldBeUpdated()
+    {
+        // Arrange — existing allocation with ProjectRole "Developer"
+        var allocId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var hrId = Guid.NewGuid();
+
+        var allocation = CreateAllocation(allocId, projectId, employeeId, 50);
+        allocation.ProjectRole = "Developer";
+        var project = CreateProject(projectId, hrId);
+        var employee = new Employee
+        {
+            Id = employeeId,
+            EmpCode = TestData.StaffEmpCode,
+            FirstName = "Bob",
+            LastName = "Staff",
+            IsActive = true
+        };
+
+        _currentUser.Role.Returns(EmployeeRole.HR);
+        _allocationRepo.GetByIdAsync(allocId, Arg.Any<CancellationToken>()).Returns(allocation);
+        _projectRepo.GetByIdAsync(projectId, Arg.Any<CancellationToken>()).Returns(project);
+        _allocationRepo.GetOverlappingTotalPercentageAsync(
+            employeeId, Arg.Any<DateOnly>(), Arg.Any<DateOnly?>(),
+            allocId, Arg.Any<CancellationToken>()).Returns(0);
+        _employeeRepo.GetByIdAsync(employeeId, Arg.Any<CancellationToken>()).Returns(employee);
+
+        var command = new UpdateAllocationCommand
+        {
+            AllocationId = allocId,
+            FromDate = TestData.Today,
+            Percentage = 60,
+            ProjectRole = "Tech Lead"
+        };
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.Handle(command, CancellationToken.None);
+
+        // Assert — ProjectRole should be updated to the new value
+        result.ProjectRole.Should().Be("Tech Lead");
+    }
+
     // ─── FR-012 | Audit log on success ──────────────────────────────────────
 
     [Fact(DisplayName = "FR-012 | Handle_SuccessfulUpdate_ShouldWriteAuditLog")]

@@ -4,14 +4,14 @@
 
 ## 1. Document Control
 
-| Field          | Value                                                    |
-| -------------- | -------------------------------------------------------- |
-| Project        | Project Allocation Management System (PAMS)              |
-| Version        | 1.4.0                                                    |
-| Date           | 2026-03-03                                               |
-| Author         | BusinessAnalyst (GitHub Copilot)                         |
-| Status         | Updated – Enriched API Responses & Dashboard Deprecation |
-| Pipeline State | Phase 1 – Specification Updated                          |
+| Field          | Value                                       |
+| -------------- | ------------------------------------------- |
+| Project        | Project Allocation Management System (PAMS) |
+| Version        | 1.5.0                                       |
+| Date           | 2026-03-03                                  |
+| Author         | BusinessAnalyst (GitHub Copilot)            |
+| Status         | Updated – ProjectRole on Allocation Entity  |
+| Pipeline State | Phase 1 – Specification Updated             |
 
 ---
 
@@ -326,7 +326,7 @@ Delivery is split into two phases:
 - AC-005-3: Changing status to `Completed` when active, future-dated allocations exist → warning displayed; user must confirm to proceed. Active allocations are not automatically ended.
 - AC-005-4: Status lifecycle: `Upcoming → Active → Completed`. Direct transition from `Upcoming` to `Completed` is allowed.
 - AC-005-5: `billable` flag is editable. Changing it does not affect existing allocations.
-- AC-005-6: Response MUST include `Allocations[]` — a list of all active allocations for the project, using the enriched `AllocationDetailResponse` (see FR-010 AC-010-8 through AC-010-12).
+- AC-005-6: Response MUST include `Allocations[]` — a list of all active allocations for the project, using the enriched `AllocationDetailResponse` (see FR-010 AC-010-8 through AC-010-14).
 - AC-005-7: Response MUST include `TeamMembers[]` — a list of all team-lead/reportee assignments for the project, using `ProjectTeamMemberResponse`.
 - AC-005-8: A PM can see full detail of their own projects; other roles see projects filtered by authorization.
 
@@ -481,11 +481,13 @@ Delivery is split into two phases:
 - AC-010-5: Project Manager can only allocate to projects they manage (where they are set as `projectManager`).
 - AC-010-6: HR can allocate to any active project.
 - AC-010-7: On success, allocation is immediately reflected in Employee View and Project View.
-- AC-010-8: Response MUST include `Designation` (from the allocated Employee entity).
-- AC-010-9: Response MUST include `Billable` (from the associated Project entity).
-- AC-010-10: Response MUST include `AccountCode` and `AccountName` (from the Project's linked Account entity).
-- AC-010-11: Response MUST include `Status` — computed as: `Active` if `FromDate <= today` and (`ToDate` is null or `ToDate >= today`); `Upcoming` if `FromDate > today`; `Ended` if `ToDate < today`.
-- AC-010-12: Response MUST include `UpdatedAt` (from the Allocation entity).
+- AC-010-8: POST request MAY include optional `ProjectRole` (string) — the role the employee will perform on this project (e.g., "Architect", "Tech Lead", "Developer").
+- AC-010-9: `ProjectRole` MUST be stored on the Allocation entity and returned in the response.
+- AC-010-10: If `ProjectRole` is not provided, it defaults to null/empty.
+- AC-010-11: Response MUST include `Billable` (from the associated Project entity).
+- AC-010-12: Response MUST include `AccountCode` and `AccountName` (from the Project's linked Account entity).
+- AC-010-13: Response MUST include `Status` — computed as: `Active` if `FromDate <= today` and (`ToDate` is null or `ToDate >= today`); `Upcoming` if `FromDate > today`; `Ended` if `ToDate < today`.
+- AC-010-14: Response MUST include `UpdatedAt` (from the Allocation entity).
 
 **Negative / Edge Cases:**
 
@@ -548,6 +550,7 @@ Delivery is split into two phases:
 - AC-012-2: PM cannot edit allocations on projects they do not manage.
 - AC-012-3: HR can edit any allocation.
 - AC-012-4: Editing `fromDate` to a future date when the allocation has already started creates an audit note but is allowed (with confirmation).
+- AC-012-5: PUT request MAY include `ProjectRole` to change the employee's project role on this allocation.
 
 **Negative / Edge Cases:**
 
@@ -702,7 +705,7 @@ Delivery is split into two phases:
 
 - AC-017-1: Projects grouped by Account Code (collapsible sections).
 - AC-017-2: For each project: Project Name, Project Code, Account, Status, and an allocations table.
-- AC-017-3: Allocations table columns: Employee Name, empCode, Designation, %, From Date, To Date, Status (Active / Upcoming / Ended), Actions (Edit, Stop, Remove).
+- AC-017-3: Allocations table columns: Employee Name, empCode, ProjectRole, %, From Date, To Date, Status (Active / Upcoming / Ended), Actions (Edit, Stop, Remove).
 - AC-017-4: Default filter: show Active and Upcoming allocations. Toggle to show Ended allocations.
 - AC-017-5: PM sees only projects where they are the assigned Project Manager.
 - AC-017-6: HR sees all projects.
@@ -774,7 +777,7 @@ Delivery is split into two phases:
 - AC-019-3: No Add, Edit, Stop, or Remove actions are available to Staff on any screen.
 - AC-019-4: Staff cannot access Account, Project, or Employee management screens.
 - AC-019-5: If the staff member is configured as a Team Lead for one or more projects (via FR-020), a **"My Team"** section is displayed below their own allocations.
-- AC-019-6: My Team section shows one collapsible group per project on which the staff member has reportees. Each group lists: Employee Name, empCode, Designation, %, From Date, To Date, Status. All entries are read-only.
+- AC-019-6: My Team section shows one collapsible group per project on which the staff member has reportees. Each group lists: Employee Name, empCode, ProjectRole, %, From Date, To Date, Status. All entries are read-only.
 - AC-019-7: Staff members who are not a Team Lead on any project do not see the My Team section.
 - AC-019-8: A staff member may be a Team Lead on Project A but not on Project B; only the relevant project group(s) appear.
 
@@ -1119,6 +1122,7 @@ Delivery is split into two phases:
 | fromDate      | date          | Yes      |                                               |
 | toDate        | date          | No       | Null = open-ended                             |
 | percentage    | int           | Yes      | 1–100; constrained by system config           |
+| projectRole   | varchar(150)  | No       | Role on the project (e.g., Architect, Dev)    |
 | allocatedById | FK → Employee | Yes      | Who created the allocation                    |
 | isActive      | bool          | Yes      | Default true; false = soft-stopped via toDate |
 | deletedAt     | datetime      | No       | Null = not removed; set = soft-deleted        |
@@ -1254,7 +1258,7 @@ Delivery is split into two phases:
 | ------------------- | ---------------------------------------------------------------------------- |
 | Layout              | Collapsible project cards grouped by account                                 |
 | Per project         | Project name, code, account, status, PM name                                 |
-| Allocation table    | Employee Name, empCode, Designation, %, From, To, Allocation Status, Actions |
+| Allocation table    | Employee Name, empCode, ProjectRole, %, From, To, Allocation Status, Actions |
 | Allocation statuses | Active (green), Upcoming (blue), Ended (grey)                                |
 | Actions per row     | Edit, Stop, Remove (contextual per role/ownership)                           |
 | Header actions      | Add Allocation (per project), Date Range filter, Status filter toggle        |
@@ -1292,7 +1296,7 @@ Delivery is split into two phases:
 | My Allocations        | Table: Project Name, Account Code, %, From Date, To Date (or "Ongoing"), Status badge (Active / Upcoming / Ended)         |
 | My Team (conditional) | Shown only if the staff member is a Team Lead on at least one project. Hidden entirely if no Team Lead assignments exist. |
 | My Team – per project | One collapsible group per project where the staff member has reportees. Group header: Project Name, Account Code.         |
-| My Team – columns     | Employee Name, empCode, Designation, %, From Date, To Date, Status. All rows read-only; no action buttons.                |
+| My Team – columns     | Employee Name, empCode, ProjectRole, %, From Date, To Date, Status. All rows read-only; no action buttons.                |
 | No write actions      | All Add, Edit, Stop, Remove buttons hidden for Staff role.                                                                |
 
 ### Screen: PM Allocation Dashboard

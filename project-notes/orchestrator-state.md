@@ -2,15 +2,14 @@
 
 ## Current Pipeline State: `DEV_VERIFIED_ALL_TESTS_PASS`
 
-### Active Feature: API DTO Enrichment + Dashboard Deprecation — COMPLETE
+### Active Feature: ProjectRole on Allocation — COMPLETE
 
 **Scope:**
 
-1. Enrich `AllocationDetailResponse` — add `Designation`, `Billable`, `AccountCode`, `AccountName`, `Status`, `UpdatedAt`
-2. Enrich `ProjectDetailResponse` — embed `Allocations[]` + `TeamMembers[]`
-3. Enrich `EmployeeDetailResponse` — add `ManagedProjects[]`
-4. Deprecate `DashboardController` (keep functional, mark obsolete)
-5. Create `project-notes/api-flow.md` — API consumption flow per role
+1. Add `ProjectRole` (string, nullable) to Allocation entity + DB column
+2. Replace `Designation` with `ProjectRole` on `AllocationDetailResponse`
+3. Accept `ProjectRole` on POST/PUT allocation commands
+4. Update all handlers, MapFrom, tests, and docs
 
 ---
 

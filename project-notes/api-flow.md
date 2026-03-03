@@ -354,6 +354,10 @@ Allocations are created by HR or PM. They are subject to capacity rules:
 
 A PM can be both the manager AND an allocated resource, but these are separate records. A PM who only manages (not works on) a project will have no allocation row — they appear in `managedProjects[]` but not in `currentAllocations[]`.
 
+### ProjectRole vs Designation
+
+ProjectRole vs Designation: Designation is the org-level title on the Employee entity (e.g., 'Engineering Manager'). ProjectRole is the allocation-level role on a specific project (e.g., 'Architect', 'Tech Lead'). An employee can have different ProjectRoles across different allocations.
+
 ### Managing vs Working Distinction
 
 ```
@@ -401,14 +405,14 @@ In v1.7.0, several response DTOs were enriched to embed related data, reducing t
 
 ### AllocationDetailResponse — New Fields
 
-| Field         | Type                             | Description                               |
-| ------------- | -------------------------------- | ----------------------------------------- |
-| `designation` | string                           | Employee's designation/title              |
-| `billable`    | boolean                          | Whether the project is billable           |
-| `accountCode` | string                           | Account business code                     |
-| `accountName` | string                           | Account display name                      |
-| `status`      | string (Active, Upcoming, Ended) | Computed allocation status based on dates |
-| `updatedAt`   | date-time                        | Last modification timestamp               |
+| Field         | Type                             | Description                                |
+| ------------- | -------------------------------- | ------------------------------------------ |
+| `projectRole` | string (nullable)                | Role the employee performs on this project |
+| `billable`    | boolean                          | Whether the project is billable            |
+| `accountCode` | string                           | Account business code                      |
+| `accountName` | string                           | Account display name                       |
+| `status`      | string (Active, Upcoming, Ended) | Computed allocation status based on dates  |
+| `updatedAt`   | date-time                        | Last modification timestamp                |
 
 These fields are denormalized from the related Employee, Project, and Account entities so that consumers don't need to make additional calls to resolve display data.
 
