@@ -18,10 +18,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  checks: write # Required by dorny/test-reporter to publish results
-
 jobs:
   # ── 1. Build ────────────────────────────────────────────────────────────
   build:
@@ -77,17 +73,6 @@ jobs:
           --no-build
           --configuration Release
           --verbosity normal
-          --logger "trx;LogFileName=unit-test-results.trx"
-          --results-directory ./TestResults
-
-      # Publish test results as a PR check
-      - name: Report Unit Test Results
-        uses: dorny/test-reporter@v1
-        if: always()
-        with:
-          name: Unit Test Results
-          path: TestResults/unit-test-results.trx
-          reporter: dotnet-trx
 
   # ── 2b. Integration Tests (Docker is pre-installed on ubuntu-latest) ────
   integration-tests:
@@ -109,20 +94,10 @@ jobs:
           name: build-output
 
       # Testcontainers auto-pulls postgres:17 — Docker is already available
+      # Testcontainers auto-pulls postgres:17 — Docker is already available
       - name: Run Integration Tests
         run: >
           dotnet test tests/PAMS.IntegrationTests/PAMS.IntegrationTests.csproj
           --no-build
           --configuration Release
           --verbosity normal
-          --logger "trx;LogFileName=integration-test-results.trx"
-          --results-directory ./TestResults
-
-      # Publish test results as a PR check
-      - name: Report Integration Test Results
-        uses: dorny/test-reporter@v1
-        if: always()
-        with:
-          name: Integration Test Results
-          path: TestResults/integration-test-results.trx
-          reporter: dotnet-trx
