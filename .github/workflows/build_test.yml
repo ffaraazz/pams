@@ -18,6 +18,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  checks: write # Required by dorny/test-reporter to publish results
+
 jobs:
   # ── 1. Build ────────────────────────────────────────────────────────────
   build:
@@ -74,6 +78,7 @@ jobs:
           --configuration Release
           --verbosity normal
           --logger "trx;LogFileName=unit-test-results.trx"
+          --results-directory ./TestResults
 
       # Publish test results as a PR check
       - name: Report Unit Test Results
@@ -81,7 +86,7 @@ jobs:
         if: always()
         with:
           name: Unit Test Results
-          path: "**/unit-test-results.trx"
+          path: TestResults/unit-test-results.trx
           reporter: dotnet-trx
 
   # ── 2b. Integration Tests (Docker is pre-installed on ubuntu-latest) ────
@@ -111,6 +116,7 @@ jobs:
           --configuration Release
           --verbosity normal
           --logger "trx;LogFileName=integration-test-results.trx"
+          --results-directory ./TestResults
 
       # Publish test results as a PR check
       - name: Report Integration Test Results
@@ -118,5 +124,5 @@ jobs:
         if: always()
         with:
           name: Integration Test Results
-          path: "**/integration-test-results.trx"
+          path: TestResults/integration-test-results.trx
           reporter: dotnet-trx
