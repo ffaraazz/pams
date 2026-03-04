@@ -68,14 +68,26 @@ public sealed class PamsApiFactory : WebApplicationFactory<Program>, IAsyncLifet
 
     /// <summary>
     /// Creates an HttpClient with a specific role claim for test auth.
+    /// Defaults empCode and employeeId based on the role using SeedData constants.
     /// </summary>
-    public HttpClient CreateClientWithRole(string role, string empCode = "EMP-001", Guid? employeeId = null)
+    public HttpClient CreateClientWithRole(string role, string? empCode = null, Guid? employeeId = null)
     {
+        empCode ??= role switch
+        {
+            "Staff" => Helpers.SeedData.StaffEmpCode,
+            "ProjectManager" => Helpers.SeedData.PmEmpCode,
+            _ => Helpers.SeedData.HrEmpCode,
+        };
+        employeeId ??= role switch
+        {
+            "Staff" => Helpers.SeedData.StaffEmployeeId,
+            "ProjectManager" => Helpers.SeedData.PmEmployeeId,
+            _ => Helpers.SeedData.HrEmployeeId,
+        };
         var client = CreateClient();
         client.DefaultRequestHeaders.Add("X-Test-Role", role);
         client.DefaultRequestHeaders.Add("X-Test-EmpCode", empCode);
-        if (employeeId.HasValue)
-            client.DefaultRequestHeaders.Add("X-Test-EmployeeId", employeeId.Value.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-EmployeeId", employeeId.Value.ToString());
         return client;
     }
 

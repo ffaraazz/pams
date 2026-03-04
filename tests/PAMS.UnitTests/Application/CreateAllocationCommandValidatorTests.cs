@@ -272,7 +272,7 @@ public sealed class CreateAllocationCommandValidatorTests
 
         // Assert — will FAIL: validator doesn't reject past from-dates yet
         result.ShouldHaveValidationErrorFor(c => c.FromDate)
-            .WithErrorMessage("*past*");
+            .WithErrorMessage("From date must not be in the past.");
     }
 
     [Fact(DisplayName = "FR-010 | Validate_TodayFromDate_ShouldPass")]

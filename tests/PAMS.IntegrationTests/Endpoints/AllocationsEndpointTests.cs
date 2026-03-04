@@ -46,8 +46,9 @@ public sealed class AllocationsEndpointTests : IAsyncLifetime
         {
             empCode = SeedData.StaffEmpCode,
             projectCode = SeedData.ProjectCode,
-            percentage = 10,
+            percentage = 25,
             fromDate = DateOnly.FromDateTime(DateTime.Today.AddDays(100)).ToString("yyyy-MM-dd"),
+            toDate = DateOnly.FromDateTime(DateTime.Today.AddDays(109)).ToString("yyyy-MM-dd"),
         };
 
         var response = await client.PostAsJsonAsync("/api/v1/allocations", payload);
@@ -63,8 +64,9 @@ public sealed class AllocationsEndpointTests : IAsyncLifetime
         {
             empCode = SeedData.StaffEmpCode,
             projectCode = SeedData.ProjectCode,
-            percentage = 10,
+            percentage = 25,
             fromDate = DateOnly.FromDateTime(DateTime.Today.AddDays(200)).ToString("yyyy-MM-dd"),
+            toDate = DateOnly.FromDateTime(DateTime.Today.AddDays(209)).ToString("yyyy-MM-dd"),
         };
 
         var response = await client.PostAsJsonAsync("/api/v1/allocations", payload);
@@ -93,8 +95,9 @@ public sealed class AllocationsEndpointTests : IAsyncLifetime
         {
             empCode = SeedData.StaffEmpCode,
             projectCode = SeedData.ProjectCode,
-            percentage = 5,
+            percentage = 25,
             fromDate = DateOnly.FromDateTime(DateTime.Today.AddDays(300)).ToString("yyyy-MM-dd"),
+            toDate = DateOnly.FromDateTime(DateTime.Today.AddDays(309)).ToString("yyyy-MM-dd"),
         };
 
         var created = await client.PostAsJsonAsync("/api/v1/allocations", payload);
@@ -127,7 +130,7 @@ public sealed class AllocationsEndpointTests : IAsyncLifetime
         {
             empCode = SeedData.StaffEmpCode,
             projectCode = SeedData.ProjectCode,
-            percentage = 10,
+            percentage = 25,
             fromDate = from.ToString("yyyy-MM-dd"),
             toDate = to.ToString("yyyy-MM-dd"),
         };
@@ -143,7 +146,7 @@ public sealed class AllocationsEndpointTests : IAsyncLifetime
         {
             fromDate = from.ToString("yyyy-MM-dd"),
             toDate = to.ToString("yyyy-MM-dd"),
-            percentage = 15,
+            percentage = 30,
         };
         var response = await client.PutAsJsonAsync(location!.ToString(), updatePayload);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -155,13 +158,13 @@ public sealed class AllocationsEndpointTests : IAsyncLifetime
     public async Task StopAllocation_Returns200()
     {
         var client = _factory.CreateClientWithRole("HR", SeedData.HrEmpCode, SeedData.HrEmployeeId);
-        var from = DateOnly.FromDateTime(DateTime.Today.AddDays(-10));
-        var to = DateOnly.FromDateTime(DateTime.Today.AddDays(600));
+        var from = DateOnly.FromDateTime(DateTime.Today.AddDays(10));
+        var to = DateOnly.FromDateTime(DateTime.Today.AddDays(50));
         var createPayload = new
         {
             empCode = SeedData.StaffEmpCode,
             projectCode = SeedData.ProjectCode,
-            percentage = 5,
+            percentage = 25,
             fromDate = from.ToString("yyyy-MM-dd"),
             toDate = to.ToString("yyyy-MM-dd"),
         };

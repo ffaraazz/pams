@@ -26,8 +26,8 @@ PAMS.slnx
 │   ├── PAMS.Infrastructure/    # EF Core DbContext, repositories, migrations, seeders
 │   └── PAMS.API/               # Controllers, middleware, auth config, Swagger
 ├── tests/
-│   ├── PAMS.UnitTests/         # 186 unit tests (handlers, validators, domain services)
-│   └── PAMS.IntegrationTests/  # 59 integration tests (Testcontainers + WebApplicationFactory)
+│   ├── PAMS.UnitTests/         # 210 unit tests (handlers, validators, domain services)
+│   └── PAMS.IntegrationTests/  # 53 integration tests (Testcontainers + WebApplicationFactory)
 ├── keycloak/
 │   └── realm-pams.json         # Pre-configured realm with roles and test users
 ├── project-notes/              # Specs, architecture, API contract, test reports
@@ -80,73 +80,73 @@ Configured via `.env` (Docker) or `appsettings.Development.json` (local):
 | `KEYCLOAK_PORT`     | `8080`              | Host port for Keycloak   |
 | `API_PORT`          | `5000`              | Host port for the API    |
 
-## Authentication
+## Authentication & Authorization
 
-Keycloak is pre-configured with the `pams` realm, three roles, and three test users:
+Keycloak is used **only for authentication** (JWT validation). Authorization is **DB-driven** — the user's role is resolved from the `Employee.Role` column, making the system IdP-agnostic.
 
-| Username    | Password   | Role           |
-| ----------- | ---------- | -------------- |
-| `hr.admin`  | `password` | HR             |
-| `pm.alice`  | `password` | ProjectManager |
-| `staff.bob` | `password` | Staff          |
+The `pams` realm is pre-configured with three test users:
+
+| Username       | Password   | Role (in DB)   | EmpCode |
+| -------------- | ---------- | -------------- | ------- |
+| `priya.sharma` | `password` | HR             | EMP-001 |
+| `alice.morgan` | `password` | ProjectManager | EMP-002 |
+| `bob.reynolds` | `password` | Staff          | EMP-003 |
 
 **Swagger UI** has built-in OAuth2 ROPC login — click **Authorize**, enter a username/password, and set client ID to `pams-web`.
 
 ### Authorization Policies
 
-| Policy           | Roles Allowed          |
-| ---------------- | ---------------------- |
-| HROnly           | HR                     |
-| CanAllocate      | HR, ProjectManager     |
-| CanViewDashboard | HR, ProjectManager     |
-| Authenticated    | Any authenticated user |
+| Policy        | Roles Allowed          |
+| ------------- | ---------------------- |
+| HROnly        | HR                     |
+| CanAllocate   | HR, ProjectManager     |
+| Authenticated | Any authenticated user |
 
-## API Endpoints (29 total)
+## API Endpoints (27 total)
 
 All endpoints are prefixed with `/api/v1`.
 
-| Method | Path                                         | Policy           |
-| ------ | -------------------------------------------- | ---------------- |
-| GET    | `/accounts`                                  | CanAllocate      |
-| GET    | `/accounts/{accountCode}`                    | CanAllocate      |
-| POST   | `/accounts`                                  | HROnly           |
-| PUT    | `/accounts/{accountCode}`                    | HROnly           |
-| GET    | `/projects`                                  | Authenticated    |
-| GET    | `/projects/{projectCode}`                    | Authenticated    |
-| POST   | `/projects`                                  | HROnly           |
-| PUT    | `/projects/{projectCode}`                    | CanAllocate      |
-| GET    | `/employees`                                 | CanAllocate      |
-| GET    | `/employees/{empCode}`                       | Authenticated    |
-| GET    | `/employees/me`                              | Authenticated    |
-| POST   | `/employees`                                 | HROnly           |
-| PUT    | `/employees/{empCode}`                       | HROnly           |
-| POST   | `/allocations`                               | CanAllocate      |
-| GET    | `/allocations/{id}`                          | Authenticated    |
-| PUT    | `/allocations/{id}`                          | CanAllocate      |
-| PATCH  | `/allocations/{id}`                          | CanAllocate      |
-| DELETE | `/allocations/{id}`                          | CanAllocate      |
-| GET    | `/allocations/capacity-check`                | CanAllocate      |
-| GET    | `/skills`                                    | Authenticated    |
-| POST   | `/skills`                                    | HROnly           |
-| PUT    | `/skills/{id}`                               | HROnly           |
-| GET    | `/system-config`                             | HROnly           |
-| PUT    | `/system-config`                             | HROnly           |
-| GET    | `/projects/{code}/team-members`              | CanAllocate      |
-| POST   | `/projects/{code}/team-members`              | CanAllocate      |
-| DELETE | `/projects/{code}/team-members/{lead}/{rep}` | CanAllocate      |
-| GET    | `/dashboard/project-view`                    | CanViewDashboard |
-| GET    | `/dashboard/employee-view`                   | CanViewDashboard |
+| Method | Path                                         | Policy        |
+| ------ | -------------------------------------------- | ------------- |
+| GET    | `/accounts`                                  | CanAllocate   |
+| GET    | `/accounts/{accountCode}`                    | CanAllocate   |
+| POST   | `/accounts`                                  | HROnly        |
+| PUT    | `/accounts/{accountCode}`                    | HROnly        |
+| GET    | `/projects`                                  | Authenticated |
+| GET    | `/projects/{projectCode}`                    | Authenticated |
+| POST   | `/projects`                                  | HROnly        |
+| PUT    | `/projects/{projectCode}`                    | CanAllocate   |
+| GET    | `/employees`                                 | CanAllocate   |
+| GET    | `/employees/{empCode}`                       | Authenticated |
+| GET    | `/employees/me`                              | Authenticated |
+| POST   | `/employees`                                 | HROnly        |
+| PUT    | `/employees/{empCode}`                       | HROnly        |
+| GET    | `/allocations`                               | Authenticated |
+| POST   | `/allocations`                               | CanAllocate   |
+| GET    | `/allocations/{id}`                          | Authenticated |
+| PUT    | `/allocations/{id}`                          | CanAllocate   |
+| PATCH  | `/allocations/{id}`                          | CanAllocate   |
+| DELETE | `/allocations/{id}`                          | CanAllocate   |
+| GET    | `/allocations/capacity-check`                | CanAllocate   |
+| GET    | `/skills`                                    | Authenticated |
+| POST   | `/skills`                                    | HROnly        |
+| PUT    | `/skills/{id}`                               | HROnly        |
+| GET    | `/system-config`                             | HROnly        |
+| PUT    | `/system-config`                             | HROnly        |
+| GET    | `/projects/{code}/team-members`              | CanAllocate   |
+| POST   | `/projects/{code}/team-members`              | CanAllocate   |
+| DELETE | `/projects/{code}/team-members/{lead}/{rep}` | CanAllocate   |
 
 ## Testing
 
 ```bash
-# Run all tests (186 unit + 59 integration = 245 total)
+# Run all tests (210 unit + 53 integration = 263 total)
 dotnet test
 
-# Unit tests only (~300ms)
+# Unit tests only (~400ms)
 dotnet test tests/PAMS.UnitTests
 
-# Integration tests only (~22s, requires Docker for Testcontainers)
+# Integration tests only (~6s, requires Docker for Testcontainers)
 dotnet test tests/PAMS.IntegrationTests
 ```
 
