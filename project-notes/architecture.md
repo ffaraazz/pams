@@ -7,7 +7,7 @@
 | Field          | Value                                       |
 | -------------- | ------------------------------------------- |
 | Project        | Project Allocation Management System (PAMS) |
-| Version        | 1.6.0                                       |
+| Version        | 1.7.0                                       |
 | Date           | 2026-03-04                                  |
 | Author         | ProductArchitect (GitHub Copilot)           |
 | Status         | Approved for Implementation                 |
@@ -18,26 +18,26 @@
 
 ## 2. Technology Stack
 
-| Layer           | Technology                                    | Version | Justification                                                                                 |
-| --------------- | --------------------------------------------- | ------- | --------------------------------------------------------------------------------------------- |
-| Runtime         | .NET                                          | 10.0    | LTS, latest; minimal APIs + Web API both supported                                            |
-| Web Framework   | ASP.NET Core Web API                          | 10.0    | Built-in DI, middleware pipeline, OpenAPI support                                             |
-| ORM             | Entity Framework Core                         | 10.0    | First-class .NET ORM; PostgreSQL provider available                                           |
-| Database        | PostgreSQL                                    | 17.x    | JSONB available; robust date/range support; open source                                       |
-| EF Provider     | Npgsql.EntityFrameworkCore.PostgreSQL         | 10.0    | Official Npgsql EF provider                                                                   |
-| CQRS Mediator   | MediatR                                       | 12.x    | Mature; decouples command/query handlers from API layer                                       |
-| Validation      | FluentValidation                              | 11.x    | Declarative, testable validation rules                                                        |
-| Auth            | Microsoft.AspNetCore.Authentication.JwtBearer | 10.0    | Validates Keycloak-issued OIDC tokens via JWKS auto-discovery; PAMS is a resource server only |
-| API Docs        | Scalar / Swashbuckle.AspNetCore               | latest  | OpenAPI 3.1 UI; replaces deprecated Swagger UI in .NET 10                                     |
-| Mapping         | Mapster                                       | 7.x     | Faster than AutoMapper; source-gen friendly                                                   |
-| Logging         | Serilog                                       | 4.x     | Structured logging; sinks: Console + File (+ future: Seq/ELK)                                 |
-| Testing (Unit)  | xUnit                                         | 2.9.x   | Standard .NET test framework                                                                  |
-| Testing (Int.)  | Testcontainers.PostgreSql                     | 3.x     | Spins real Postgres in Docker for integration tests                                           |
-| Test Assertions | FluentAssertions                              | 7.x     | Readable, expressive assertions                                                               |
-| Test Mocking    | NSubstitute                                   | 5.x     | Clean substitute syntax for interfaces                                                        |
-| Migrations      | EF Core Migrations (CLI)                      | 10.0    | Code-first migrations versioned in source control                                             |
-| Health Checks   | AspNetCore.HealthChecks.NpgSql                | 8.x     | Readiness/liveness probes for PostgreSQL                                                      |
-| Rate Limiting   | ASP.NET Core built-in Rate Limiter            | 10.0    | No external dep; token-bucket policy                                                          |
+| Layer           | Technology                                    | Version | Justification                                                                                                                |
+| --------------- | --------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Runtime         | .NET                                          | 10.0    | LTS, latest; minimal APIs + Web API both supported                                                                           |
+| Web Framework   | ASP.NET Core Web API                          | 10.0    | Built-in DI, middleware pipeline, OpenAPI support                                                                            |
+| ORM             | Entity Framework Core                         | 10.0    | First-class .NET ORM; PostgreSQL provider available                                                                          |
+| Database        | PostgreSQL                                    | 17.x    | JSONB available; robust date/range support; open source                                                                      |
+| EF Provider     | Npgsql.EntityFrameworkCore.PostgreSQL         | 10.0    | Official Npgsql EF provider                                                                                                  |
+| CQRS Mediator   | MediatR                                       | 12.x    | Mature; decouples command/query handlers from API layer                                                                      |
+| Validation      | FluentValidation                              | 11.x    | Declarative, testable validation rules                                                                                       |
+| Auth            | Microsoft.AspNetCore.Authentication.JwtBearer | 10.0    | Validates JWT tokens via JWKS auto-discovery; IdP-agnostic (Keycloak, Entra ID, Auth0, etc.); PAMS is a resource server only |
+| API Docs        | Scalar / Swashbuckle.AspNetCore               | latest  | OpenAPI 3.1 UI; replaces deprecated Swagger UI in .NET 10                                                                    |
+| Mapping         | Mapster                                       | 7.x     | Faster than AutoMapper; source-gen friendly                                                                                  |
+| Logging         | Serilog                                       | 4.x     | Structured logging; sinks: Console + File (+ future: Seq/ELK)                                                                |
+| Testing (Unit)  | xUnit                                         | 2.9.x   | Standard .NET test framework                                                                                                 |
+| Testing (Int.)  | Testcontainers.PostgreSql                     | 3.x     | Spins real Postgres in Docker for integration tests                                                                          |
+| Test Assertions | FluentAssertions                              | 7.x     | Readable, expressive assertions                                                                                              |
+| Test Mocking    | NSubstitute                                   | 5.x     | Clean substitute syntax for interfaces                                                                                       |
+| Migrations      | EF Core Migrations (CLI)                      | 10.0    | Code-first migrations versioned in source control                                                                            |
+| Health Checks   | AspNetCore.HealthChecks.NpgSql                | 8.x     | Readiness/liveness probes for PostgreSQL                                                                                     |
+| Rate Limiting   | ASP.NET Core built-in Rate Limiter            | 10.0    | No external dep; token-bucket policy                                                                                         |
 
 ---
 
@@ -191,7 +191,7 @@ Implements interfaces defined in Domain and Application. Depends on both.
   - `UnitOfWork.cs`
   - `Seed/` – `SystemConfigSeeder`, `SkillSeeder` (invoked at startup in dev/staging)
 - `Services/`
-  - `CurrentUserService.cs` – reads JWT claims from `IHttpContextAccessor` and resolves authenticated user's Employee ID via `PamsDbContext` database lookup. Identity resolution strategy: (1) try `sub` claim → verify GUID exists in employees table, (2) fallback to `empCode` claim → find employee by EmpCode, (3) cache resolved ID per-request. Depends on `IHttpContextAccessor` and `PamsDbContext`.
+  - `CurrentUserService.cs` – reads `empCode` claim from JWT via `IHttpContextAccessor` and resolves the authenticated user's `Employee` record (including `Role`) from the database. Identity resolution strategy: (1) extract `empCode` claim from JWT, (2) query `employees` table by EmpCode → resolve `EmployeeId` and `Role`, (3) cache resolved identity per-request (scoped lifetime). Role is always read from `Employee.Role` in the DB — never from JWT claims. This makes the system IdP-agnostic. Depends on `IHttpContextAccessor` and `PamsDbContext`.
   - `DateTimeProvider.cs` – wraps `DateOnly.FromDateTime(DateTime.UtcNow)` for testability
   - `AuditLogService.cs` – writes to `audit_logs` table; never throws to caller
 - `Extensions/`
@@ -208,18 +208,19 @@ Implements interfaces defined in Domain and Application. Depends on both.
 - `AuditLog` table append-only; no Repository pattern needed — `DbContext.Add()` directly from `AuditLogService`
 - `ProjectTeamMember` table: composite unique constraint `(project_id, team_lead_id, reportee_id)`; check constraint `team_lead_id != reportee_id`; indexes on `project_id`, `team_lead_id`, `reportee_id`
 
-### Identity Resolution Flow (Keycloak → PAMS)
+### Identity Resolution Flow (IdP-Agnostic)
 
-1. JWT Bearer token arrives with claims: `sub` (Keycloak internal UUID), `empCode` (custom attribute), `realm_access.roles`
-2. CurrentUserService.EmployeeId getter:
-   a. Check `sub` claim → parse as GUID → query `employees` table by ID → if exists, use it
-   b. Fallback: read `empCode` claim → query `employees` table by EmpCode → use resulting ID
-   c. Cache resolved GUID for remainder of HTTP request (scoped lifetime)
-3. CurrentUserService.Role: maps Keycloak realm roles (HR, ProjectManager) to EmployeeRole enum
-4. All command handlers use ICurrentUserService.EmployeeId for:
+1. JWT Bearer token arrives; the only required application claim is `empCode` (stable user identifier set as a custom attribute in any IdP — Keycloak, Microsoft Entra ID, Auth0, etc.)
+2. `CurrentUserService` resolves identity from the database:
+   a. Extract `empCode` claim from JWT
+   b. Query `employees` table by EmpCode → resolve `EmployeeId` and `Employee.Role`
+   c. Cache resolved identity (EmployeeId + Role) for remainder of HTTP request (scoped lifetime)
+3. `CurrentUserService.Role`: read from `Employee.Role` column in the database (not from JWT claims). This ensures role changes take effect immediately without token re-issuance.
+4. All command handlers use `ICurrentUserService.EmployeeId` for:
    - PM scope enforcement (project ownership check)
    - Audit log `performedById` field
    - Allocation `allocatedById` foreign key
+5. Authorization policies (`HROnly`, `CanAllocate`) use custom `IAuthorizationHandler` implementations that check the DB-resolved role via `ICurrentUserService.Role`
 
 ---
 
@@ -250,29 +251,35 @@ Presentation layer. HTTP in; HTTP out. No business logic.
 
 ## 5. Authentication & Authorization
 
-### Auth Mechanism: Keycloak OAuth2 / OIDC
+### Auth Mechanism: IdP-Agnostic JWT Validation + DB-Driven Role Resolution
 
-**Architecture:** PAMS is a **resource server only**. Keycloak is the Authorization Server and identity provider. PAMS never issues, stores, or validates passwords.
+**Architecture:** PAMS is a **resource server only**. Any OIDC-compliant identity provider (Keycloak, Microsoft Entra ID, Auth0, Okta, etc.) serves as the Authorization Server. PAMS never issues, stores, or validates passwords. The only JWT claim PAMS requires is `empCode` — a stable user identifier. **Roles are resolved from the database (`Employee.Role`), not from JWT claims.**
 
 ```
 [ User / API Client ]
         │
-        │  1. Obtain token via Keycloak Authorization Code or Client Credentials flow
+        │  1. Obtain token from any OIDC-compliant IdP
+        │     (Keycloak, Entra ID, Auth0, etc.)
         ▼
-[ Keycloak  (Authorization Server) ]
-        │  issues OIDC access token (RS256 signed)
+[ Identity Provider  (Authorization Server) ]
+        │  issues OIDC access token (RS256/RS384/RS512 signed)
+        │  Token must contain `empCode` claim
         │
-        │  2. Call PAMS API with  Authorization: Bearer <keycloak_token>
+        │  2. Call PAMS API with  Authorization: Bearer <token>
         ▼
 [ PAMS.API  (Resource Server) ]
         │
-        │  3. JwtBearerMiddleware fetches JWKS from Keycloak
-        │     /.well-known/openid-configuration  (auto-discovery)
+        │  3. Authentication: JwtBearerMiddleware validates token
+        │     via JWKS auto-discovery (/.well-known/openid-configuration)
         │     Validates: signature · issuer · audience · expiry
+        │     (IdP-agnostic — works with any OIDC provider)
         │
-        │  4. Extract claims → ICurrentUserService
+        │  4. Authorization: CurrentUserService extracts `empCode`
+        │     claim → looks up Employee record in DB → resolves
+        │     EmployeeId + Employee.Role from database
         │
-        │  5. Enforce policy-based authorization
+        │  5. Enforce policy-based authorization via custom
+        │     IAuthorizationHandler (checks DB-resolved role)
         ▼
 [ Handler / Domain ]
 ```
@@ -284,31 +291,36 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.Authority = builder.Configuration["KeycloakSettings:Authority"];
+        options.Authority = builder.Configuration["Jwt:Authority"];
         // e.g. https://keycloak.internal/realms/pams
-        options.Audience  = builder.Configuration["KeycloakSettings:Audience"];
+        //   or https://login.microsoftonline.com/{tenant}/v2.0
+        //   or https://your-tenant.auth0.com/
+        options.Audience  = builder.Configuration["Jwt:Audience"];
         // e.g. pams-api
         options.RequireHttpsMetadata = bool.Parse(
-            builder.Configuration["KeycloakSettings:RequireHttpsMetadata"] ?? "true");
+            builder.Configuration["Jwt:RequireHttpsMetadata"] ?? "true");
         // ASP.NET Core auto-discovers signing keys from
         // {Authority}/.well-known/openid-configuration
     });
 ```
 
-**Keycloak Claim Mapping → `ICurrentUserService`:**
-| OIDC Claim | Mapped To | Notes |
-| --------------------------- | ---------------------------- | -------------------------------------------------- |
-| `sub` | `CurrentUser.EmployeeId` | Keycloak user UUID; must match `employees.employee_id` on first login sync |
-| `empCode` (custom attribute)| `CurrentUser.EmpCode` | Set as a user attribute in Keycloak realm |
-| `realm_access.roles[]` | `CurrentUser.Role` | First matching value: `HR` / `ProjectManager` / `Staff` mapped to `EmployeeRole` enum |
-| `name` | Display only | Full name from Keycloak profile |
+**JWT Claim → DB Identity Resolution:**
+| JWT Claim | Resolved To | Source | Notes |
+| --------- | ------------------------------ | ------ | ------------------------------------------------------------------- |
+| `empCode` | `CurrentUser.EmployeeId` | DB | Looked up via `employees.emp_code`; stable across IdP migrations |
+| `empCode` | `CurrentUser.Role` | DB | Read from `Employee.Role` column — not from JWT claims |
 
-**Authorization Policies (registered in DI — unchanged):**
-| Policy Name | Roles | Used On |
-| -------------------- | ------------------------- | ------------------------------------------------ |
-| `HROnly` | HR | Account/Project/Employee CRUD |
-| `CanAllocate` | HR, ProjectManager | Allocation create/update/stop/remove |
-| `AuthenticatedUser` | HR, ProjectManager, Staff | Staff own-allocation view, profile |
+> **No other JWT claims are required by the application.** Standard claims (`sub`, `iss`, `aud`, `exp`) are used only for token validation by the JWT middleware. Role information in the token (e.g., Keycloak `realm_access.roles`, Entra ID `roles`) is **ignored** — the DB is the single source of truth for authorization.
+
+**Authorization Policies (custom `IAuthorizationHandler`):**
+
+Policies are enforced via custom `IAuthorizationHandler` implementations that resolve the user's role from the database through `ICurrentUserService.Role`, rather than reading `ClaimTypes.Role` from the JWT.
+
+| Policy Name         | Required DB Role          | Used On                              |
+| ------------------- | ------------------------- | ------------------------------------ |
+| `HROnly`            | HR                        | Account/Project/Employee CRUD        |
+| `CanAllocate`       | HR, ProjectManager        | Allocation create/update/stop/remove |
+| `AuthenticatedUser` | HR, ProjectManager, Staff | Staff own-allocation view, profile   |
 
 **PM Scope Enforcement (server-side — unchanged):**
 
@@ -318,8 +330,9 @@ In `CreateAllocationCommandHandler`, `UpdateAllocationCommandHandler`, `StopAllo
 2. If `currentUser.Role == ProjectManager` AND `project.ProjectManagerId != currentUser.EmployeeId` → throw `ForbiddenException("ERR_NOT_PROJECT_OWNER")`.
 3. This check is in the Application layer — not bypassed by any HTTP manipulation.
 
-**Future Migration Path — Azure AD / Entra ID:**
-Swap `KeycloakSettings:Authority` to the Entra ID OIDC endpoint. The `ICurrentUserService` interface, all handlers, and all authorization policies remain unchanged. Only claim source names (`realm_access.roles` → `roles`) require a mapping update in `CurrentUserService`.
+**IdP Migration Path:**
+
+To switch identity providers (e.g., Keycloak → Entra ID → Auth0), only change the `Jwt:Authority` configuration value. No code changes are needed — the `ICurrentUserService` interface, all handlers, and all authorization policies are IdP-agnostic. The only requirement is that the new IdP includes an `empCode` claim in the issued tokens.
 
 ---
 
@@ -334,7 +347,7 @@ POST /allocations
 [ExceptionHandlerMiddleware]
     │
     ▼
-[JwtBearerMiddleware (Keycloak JWKS validation)] → validate token → inject ICurrentUserService
+[JwtBearerMiddleware (JWKS validation — IdP-agnostic)] → validate token → inject ICurrentUserService
     │
     ▼
 AllocationsController.Create(CreateAllocationRequest)
@@ -758,19 +771,19 @@ ASP.NET Core built-in `RateLimiter` (no external dep):
 
 ## 15. Cross-Cutting Concerns Summary
 
-| Concern            | Implementation                                                                | Layer                      |
-| ------------------ | ----------------------------------------------------------------------------- | -------------------------- |
-| Auth/AuthZ         | Keycloak OAuth2/OIDC (JwtBearer JWKS validation) + Policy-based authorization | API                        |
-| Validation         | FluentValidation via MediatR pipeline                                         | Application                |
-| DB Transaction     | `TransactionBehavior` (MediatR)                                               | Application                |
-| Exception Mapping  | `ExceptionHandlerMiddleware`                                                  | API                        |
-| Audit Logging      | `AuditLogService` in `TransactionBehavior`                                    | Application/Infrastructure |
-| Structured Logging | Serilog `RequestLoggingMiddleware`                                            | API                        |
-| Soft Delete Filter | EF global query filter on `Allocation`                                        | Infrastructure             |
-| SystemConfig Cache | `IMemoryCache` invalidated on mutation                                        | Infrastructure             |
-| Concurrency Guard  | PostgreSQL advisory lock in `IAllocationRepository`                           | Infrastructure             |
-| Circular Reporting | Graph traversal in `ReportingChainValidator`                                  | Domain                     |
-| Team Lead Scope    | Project-scoped circular lead detection in `TeamLeadValidator`                 | Domain                     |
+| Concern            | Implementation                                                                                                                                    | Layer                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| Auth/AuthZ         | IdP-agnostic JWT validation (JWKS auto-discovery) + DB-driven role resolution via `ICurrentUserService` + custom `IAuthorizationHandler` policies | API / Infrastructure       |
+| Validation         | FluentValidation via MediatR pipeline                                                                                                             | Application                |
+| DB Transaction     | `TransactionBehavior` (MediatR)                                                                                                                   | Application                |
+| Exception Mapping  | `ExceptionHandlerMiddleware`                                                                                                                      | API                        |
+| Audit Logging      | `AuditLogService` in `TransactionBehavior`                                                                                                        | Application/Infrastructure |
+| Structured Logging | Serilog `RequestLoggingMiddleware`                                                                                                                | API                        |
+| Soft Delete Filter | EF global query filter on `Allocation`                                                                                                            | Infrastructure             |
+| SystemConfig Cache | `IMemoryCache` invalidated on mutation                                                                                                            | Infrastructure             |
+| Concurrency Guard  | PostgreSQL advisory lock in `IAllocationRepository`                                                                                               | Infrastructure             |
+| Circular Reporting | Graph traversal in `ReportingChainValidator`                                                                                                      | Domain                     |
+| Team Lead Scope    | Project-scoped circular lead detection in `TeamLeadValidator`                                                                                     | Domain                     |
 
 ---
 
@@ -814,26 +827,27 @@ This decouples allocation queries from employee profile queries, enabling indepe
 
 ## 17. Architectural Decisions & Tradeoffs
 
-| Decision                  | Chosen Approach                                | Rejected Alternative                 | Reason                                                                                                                              |
-| ------------------------- | ---------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Auth mechanism            | Keycloak OAuth2/OIDC (PAMS as resource server) | Local JWT + password store           | Delegates identity entirely to Keycloak; no password management in PAMS; future swap to Azure AD requires only Authority URL change |
-| CQRS implementation       | MediatR in-process                             | Event sourcing                       | PAMS is CRUD-heavy; full ES is premature                                                                                            |
-| ORM                       | EF Core (code-first)                           | Dapper                               | Migration management; LINQ for complex queries; Dapper used for perf-critical queries                                               |
-| Soft delete               | `deletedAt` timestamp                          | Status enum + hard delete            | Audit requirement; history preservation                                                                                             |
-| Allocation capacity query | SQL SUM in one query                           | Load all allocations to memory       | Performance (≤300ms per FR-011 AC-011-5)                                                                                            |
-| Concurrency control       | Advisory locks                                 | Optimistic concurrency (row version) | Advisory locks guarantee serializability without retry logic                                                                        |
-| API versioning            | URL path prefix                                | Header versioning                    | Simpler; API consumers are internal                                                                                                 |
-| Caching                   | IMemoryCache (in-process)                      | Redis                                | Single-instance MVP; Redis adds ops overhead                                                                                        |
-| Mapping                   | Mapster                                        | AutoMapper                           | Better performance; source-gen compatible                                                                                           |
+| Decision                  | Chosen Approach                                                        | Rejected Alternative                                 | Reason                                                                                                                                                                             |
+| ------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth mechanism            | IdP-agnostic OIDC (PAMS as resource server; DB-driven role resolution) | Local JWT + password store; IdP-specific role claims | Delegates identity to any OIDC provider; roles resolved from `Employee.Role` in DB — no dependency on IdP-specific claim formats; swap IdP by changing `Jwt:Authority` config only |
+| CQRS implementation       | MediatR in-process                                                     | Event sourcing                                       | PAMS is CRUD-heavy; full ES is premature                                                                                                                                           |
+| ORM                       | EF Core (code-first)                                                   | Dapper                                               | Migration management; LINQ for complex queries; Dapper used for perf-critical queries                                                                                              |
+| Soft delete               | `deletedAt` timestamp                                                  | Status enum + hard delete                            | Audit requirement; history preservation                                                                                                                                            |
+| Allocation capacity query | SQL SUM in one query                                                   | Load all allocations to memory                       | Performance (≤300ms per FR-011 AC-011-5)                                                                                                                                           |
+| Concurrency control       | Advisory locks                                                         | Optimistic concurrency (row version)                 | Advisory locks guarantee serializability without retry logic                                                                                                                       |
+| API versioning            | URL path prefix                                                        | Header versioning                                    | Simpler; API consumers are internal                                                                                                                                                |
+| Caching                   | IMemoryCache (in-process)                                              | Redis                                                | Single-instance MVP; Redis adds ops overhead                                                                                                                                       |
+| Mapping                   | Mapster                                                                | AutoMapper                                           | Better performance; source-gen compatible                                                                                                                                          |
 
 ---
 
 ## 17. Security Checklist
 
-- [x] All endpoints require `[Authorize]` by default; no public endpoints (Keycloak manages the unauthenticated flow)
+- [x] All endpoints require `[Authorize]` by default; no public endpoints (IdP manages the unauthenticated flow)
 - [x] PM project-ownership check in Application layer (not just controller)
-- [x] No passwords stored in PAMS; authentication fully delegated to Keycloak
-- [x] Keycloak token signature verified via JWKS auto-discovery; no private keys in PAMS source control
+- [x] No passwords stored in PAMS; authentication fully delegated to external IdP (Keycloak, Entra ID, Auth0, etc.)
+- [x] JWT token signature verified via JWKS auto-discovery; no private keys in PAMS source control
+- [x] Roles resolved from DB (`Employee.Role`), not from JWT claims — prevents role escalation via token manipulation
 - [x] `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options` headers on all responses
 - [x] Rate limiting on auth and search endpoints
 - [x] Parameterized queries only (EF Core + raw SQL with parameters)

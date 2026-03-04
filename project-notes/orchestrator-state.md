@@ -262,3 +262,33 @@
 - **Task:** Add ISO 8601 `example` values to all date/date-time fields in component schemas
 - **Status:** ✅ COMPLETED (2026-03-04T12:00:00Z)
 - **Results:** 11 date examples added across AllocationDetailResponse, CreateAllocationRequest, UpdateAllocationRequest, CapacityCheckResponse, CapacityExceededProblem schemas.
+
+---
+
+## DB-Driven Role Resolution (IdP-Agnostic Auth) — 2026-03-04
+
+### Wave 17 (parallel specs + sequential implementation)
+
+#### Dispatch #26: BusinessAnalyst → `project-notes/specs.md`
+
+- **Task:** Update specs for DB-driven authorization, IdP-agnostic auth model
+- **Status:** ✅ COMPLETED (2026-03-04T14:00:00Z)
+- **Results:** specs.md v1.7.0 — NFR-23 added (IdP-agnostic), NFR-22 updated (empCode only claim), A-04 rewritten, Integration/Auth section updated. All Keycloak-specific role references removed.
+
+#### Dispatch #27: ProductArchitect → `project-notes/architecture.md`
+
+- **Task:** Update architecture for DB-driven auth flow
+- **Status:** ✅ COMPLETED (2026-03-04T14:00:00Z)
+- **Results:** architecture.md v1.7.0 — Identity Resolution Flow rewritten, §5 Auth fully rewritten, MapKeycloakRolesToClaims references removed, custom IAuthorizationHandler documented.
+
+#### Dispatch #28: BackendDeveloper → `src/**`
+
+- **Task:** Implement DB-driven role resolution
+- **Status:** ✅ COMPLETED (2026-03-04T14:15:00Z)
+- **Results:**
+  - `CurrentUserService.cs` — Role + EmployeeId resolved from DB in single query via `EnsureResolved()`, cached per request
+  - `ServiceCollectionExtensions.cs` — Removed `OnTokenValidated`/`MapKeycloakRolesToClaims`, removed `System.Text.Json` import, replaced `RequireRole` policies with custom `DbRoleRequirement`
+  - `DbRoleRequirement.cs` (NEW) — `IAuthorizationRequirement` with `AllowedRoles`
+  - `DbRoleAuthorizationHandler.cs` (NEW) — `AuthorizationHandler` checking `ICurrentUserService.Role` from DB
+  - `ICurrentUserService.cs` — Updated XML doc comment
+  - Zero compile errors. ICurrentUserService interface unchanged — all consumers unaffected.

@@ -1,5 +1,3 @@
-using System.Security.Claims;
-using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace PAMS.API.Extensions;
@@ -31,21 +29,15 @@ public static class ServiceCollectionExtensions
                     ];
                 }
 
-                // Map Keycloak realm_access.roles to ClaimTypes.Role
-                options.Events = new JwtBearerEvents
-                {
-                    OnTokenValidated = context =>
-                    {
-                        MapKeycloakRolesToClaims(context);
-                        return Task.CompletedTask;
-                    }
-                };
             });
 
-        // Authorization policies
+        // Authorization policies — DB-driven via ICurrentUserService.Role
+        services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, PAMS.API.Authorization.DbRoleAuthorizationHandler>();
         services.AddAuthorizationBuilder()
-            .AddPolicy("HROnly", policy => policy.RequireRole("HR"))
-            .AddPolicy("CanAllocate", policy => policy.RequireRole("HR", "ProjectManager"))
+            .AddPolicy("HROnly", policy => policy.Requirements.Add(
+                new PAMS.API.Authorization.DbRoleRequirement(PAMS.Domain.Enums.EmployeeRole.HR)))
+            .AddPolicy("CanAllocate", policy => policy.Requirements.Add(
+                new PAMS.API.Authorization.DbRoleRequirement(PAMS.Domain.Enums.EmployeeRole.HR, PAMS.Domain.Enums.EmployeeRole.ProjectManager)))
             .AddPolicy("AuthenticatedUser", policy => policy.RequireAuthenticatedUser());
 
         // CORS
@@ -69,33 +61,5 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static void MapKeycloakRolesToClaims(TokenValidatedContext context)
-    {
-        if (context.Principal?.Identity is not ClaimsIdentity identity) return;
 
-        // Extract roles from realm_access.roles
-        var realmAccess = context.Principal.FindFirst("realm_access");
-        if (realmAccess is null) return;
-
-        try
-        {
-            using var doc = JsonDocument.Parse(realmAccess.Value);
-            if (doc.RootElement.TryGetProperty("roles", out var roles) &&
-                roles.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var role in roles.EnumerateArray())
-                {
-                    var roleName = role.GetString();
-                    if (!string.IsNullOrWhiteSpace(roleName))
-                    {
-                        identity.AddClaim(new Claim(ClaimTypes.Role, roleName));
-                    }
-                }
-            }
-        }
-        catch (JsonException)
-        {
-            // Malformed realm_access claim — skip role mapping
-        }
-    }
 }
