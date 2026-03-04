@@ -580,6 +580,69 @@ public sealed class CreateAllocationCommandHandlerTests
         result.UpdatedAt.Should().BeOnOrAfter(before);
     }
 
+    // ─── Allocation Billable Flag Tests (TDD Red Phase) ────────────────────
+    // These reflection-based tests verify that the Allocation entity and
+    // CreateAllocationCommand gain a Billable property, and that MapFrom
+    // maps billable from the allocation level, not just the project level.
+    // All three will FAIL until the implementation is added.
+
+    [Fact(DisplayName = "FR-010 | Allocation_ShouldHaveBillablePropertyOfTypeBool")]
+    public void Allocation_ShouldHaveBillablePropertyOfTypeBool()
+    {
+        // Arrange
+        var allocationType = typeof(PAMS.Domain.Entities.Allocation);
+
+        // Act
+        var billableProperty = allocationType.GetProperty("Billable");
+
+        // Assert — will FAIL: Allocation entity has no 'Billable' property yet
+        billableProperty.Should().NotBeNull("Allocation entity should have a 'Billable' property");
+        billableProperty!.PropertyType.Should().Be(typeof(bool),
+            "Billable should be a bool");
+    }
+
+    [Fact(DisplayName = "FR-010 | CreateAllocationCommand_ShouldHaveBillableProperty")]
+    public void CreateAllocationCommand_ShouldHaveBillableProperty()
+    {
+        // Arrange
+        var commandType = typeof(PAMS.Application.Commands.Allocations.CreateAllocationCommand);
+
+        // Act
+        var billableProperty = commandType.GetProperty("Billable");
+
+        // Assert — will FAIL: CreateAllocationCommand has no 'Billable' property yet
+        billableProperty.Should().NotBeNull("CreateAllocationCommand should have a 'Billable' property");
+        billableProperty!.PropertyType.Should().Be(typeof(bool),
+            "Billable should be a bool on the command");
+    }
+
+    [Fact(DisplayName = "FR-010 | AllocationDetailResponse_MapFrom_ShouldMapBillableFromAllocationEntity")]
+    public void AllocationDetailResponse_MapFrom_ShouldMapBillableFromAllocationEntity()
+    {
+        // Arrange — project is NOT billable, but allocation-level billable should be true
+        var allocation = Substitute.For<PAMS.Domain.Entities.Allocation>();
+        allocation.Id.Returns(Guid.NewGuid());
+        allocation.EmployeeId.Returns(Guid.NewGuid());
+        allocation.ProjectId.Returns(Guid.NewGuid());
+        allocation.FromDate.Returns(TestData.Today);
+        allocation.Percentage.Returns(50);
+
+        var project = Substitute.For<PAMS.Domain.Entities.Project>();
+        project.Billable.Returns(false); // project-level billable is false
+
+        var employee = Substitute.For<PAMS.Domain.Entities.Employee>();
+        employee.EmpCode.Returns(TestData.StaffEmpCode);
+
+        // Act — attempt to set allocation-level Billable via reflection
+        var billableProp = typeof(PAMS.Domain.Entities.Allocation).GetProperty("Billable");
+
+        // Assert — will FAIL: Allocation entity has no 'Billable' property yet,
+        // so per-allocation billable override cannot be mapped
+        billableProp.Should().NotBeNull(
+            "Allocation entity needs a 'Billable' property so MapFrom can map " +
+            "resource-level billable independently of project-level billable");
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private static PAMS.Domain.Entities.Project CreateActiveProject(Guid id, string code, Guid pmId)

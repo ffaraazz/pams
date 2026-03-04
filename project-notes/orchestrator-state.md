@@ -2,7 +2,16 @@
 
 ## Current Pipeline State: `DEV_VERIFIED_ALL_TESTS_PASS`
 
-### Active Feature: Seeder Update — ProjectRole Population — COMPLETE
+### Active Feature: Allocation Billable + Simplify /me + GET /allocations + ResourceCount + Date Validation — COMPLETE
+
+**Scope:**
+
+1. Add `Billable` (bool, default true) to Allocation entity — resource-level billable distinct from project-level
+2. Simplify `/employees/me` — remove CurrentAllocations & ManagedProjects (no pagination support)
+3. Add paginated `GET /allocations` with filters (empCode, projectCode, projectManagerEmpCode, status, billable)
+4. Add `ResourceCount` (int) to ProjectSummaryResponse & ProjectDetailResponse
+5. Validate `FromDate >= today` on CreateAllocationCommand
+6. Delete `ManagedProjectItem.cs` DTO (no longer used)
 
 **Scope:**
 
@@ -165,3 +174,91 @@
 - **Status:** ✅ COMPLETED (2026-03-03T11:15:00Z)
 - **Dispatched:** 2026-03-03T11:00:00Z
 - **Results:** All 12 allocation seeds updated with ProjectRole values. Zero compile errors. Values: Senior Developer, Developer, Tech Lead, Architect, Frontend Developer, QA Lead, QA Engineer, DevOps Engineer (×2), Backend Developer, Developer, Full Stack Developer.
+
+---
+
+## Allocation Billable + Simplify /me + GET /allocations + ResourceCount + Date Validation — 2026-03-04
+
+### Wave 8 (parallel — specs + architecture)
+
+#### Dispatch #16: BusinessAnalyst → `project-notes/specs.md`
+
+- **Task:** Update specs v1.6.0 with 6 requirement changes (FR-010 Billable + fromDate, FR-012 Billable, FR-005 ResourceCount, FR-024 REMOVED, FR-025 new paginated allocations)
+- **Status:** ✅ COMPLETED (2026-03-04T09:00:00Z)
+
+#### Dispatch #17: ProductArchitect → `project-notes/api-spec.yaml` + `project-notes/api-flow.md` + `project-notes/architecture.md`
+
+- **Task:** api-spec.yaml v1.10.0, api-flow.md v1.1.0, architecture.md v1.6.0 — new GET /allocations, Billable schemas, ResourceCount, simplified employee endpoint
+- **Status:** ✅ COMPLETED (2026-03-04T09:00:00Z)
+
+### Wave 9 (sequential — TDD red)
+
+#### Dispatch #18: TestEngineer → `tests/**`
+
+- **Task:** Write 11 failing tests across 5 files for all features
+- **Status:** ✅ COMPLETED (2026-03-04T09:15:00Z)
+- **Results:** 3 files created, 2 files modified. 11 tests: Billable (3), fromDate validation (2), employee simplification (2), ResourceCount (2), filtered repo (2)
+
+### Wave 10 (sequential — TDD green)
+
+#### Dispatch #19: BackendDeveloper → `src/**`
+
+- **Task:** Implement all 6 features (18 files modified, 1 created)
+- **Status:** ✅ COMPLETED (2026-03-04T09:30:00Z)
+- **Results:** Entity Billable, Commands, Handlers, DTOs, Controllers, Repository filtered queries, Validator fromDate, Migration, Seeder, EF Config. Zero compile errors.
+
+### Wave 11 (parallel — QA + review)
+
+#### Dispatch #20: TestEngineer (QA) → `project-notes/test-report.md`
+
+- **Task:** Validate all 11 tests, update test counts
+- **Status:** ✅ COMPLETED (2026-03-04T09:45:00Z)
+- **Results:** 207 unit / 266 total. All validations passed. 6 gaps noted.
+
+#### Dispatch #21: CodeReviewer → `project-notes/code-review-report.md`
+
+- **Task:** Review all changes
+- **Status:** ✅ COMPLETED (2026-03-04T09:45:00Z)
+- **Results:** PASS WITH OBSERVATIONS. 1 Critical (CR-24: role-scoping), 1 High (CR-25: UpdateValidator), 4 Medium, 6 Low, 4 Info.
+
+### Wave 12 (fix review findings)
+
+#### Dispatch #22: BackendDeveloper → `src/**`
+
+- **Task:** Fix CR-24 (role-scoping GET /allocations), CR-25 (create UpdateAllocationCommandValidator), CR-26/27 (dead params), CR-28 (audit log Billable/ProjectRole)
+- **Status:** ✅ COMPLETED (2026-03-04T10:00:00Z)
+- **Results:** 5 files modified, 1 file created. Role-scoping: Staff→own, PM→own projects, HR→all. UpdateAllocationCommandValidator with percentage, date, increment rules. Dead params removed. Audit logs enriched.
+
+---
+
+## Seeder Data Quality Fix — 2026-03-04
+
+### Wave 13
+
+#### Dispatch #23: BackendDeveloper → `src/PAMS.Infrastructure/Persistence/Seed/EmployeeSeeder.cs` + `DemoDataSeeder.cs`
+
+- **Task:** Fix seed data for correctness and realism
+- **Status:** ✅ COMPLETED (2026-03-04T11:00:00Z)
+- **Results:**
+  - EmployeeSeeder: EMP-001 "HR Admin" → "Priya Sharma", EMP-002 "Alice PM" → "Alice Morgan", EMP-003 "Bob Staff" → "Bob Reynolds" (emails updated)
+  - DemoDataSeeder: PRJ-TEAMS-INT status Active→Completed (end date 2025-12-31 is past), PRJ-FRAUD-DET status Upcoming→Active (start date 2026-01-01 is past)
+  - Reporting lines: EMP-008 (James Taylor) + EMP-009 (Rachel Martinez) now report to EMP-001 (Priya Sharma, HR)
+  - Skills: EMP-003 (Bob) gained C# and .NET (works on .NET projects)
+
+---
+
+## Validator Fix + Date Format — 2026-03-04
+
+### Wave 14 (parallel)
+
+#### Dispatch #24: BackendDeveloper → `src/PAMS.Application/Validators/UpdateAllocationCommandValidator.cs` + `src/PAMS.API/Program.cs`
+
+- **Task:** Remove `FromDate >= today` from UpdateAllocationCommandValidator (conflicts with editing active allocations). Add `MapType<DateOnly>` to Swagger config for proper OpenAPI date format.
+- **Status:** ✅ COMPLETED (2026-03-04T12:00:00Z)
+- **Results:** Removed past-date rule from Update validator (handler already guards ended allocations). Added `MapType<DateOnly>` to `AddSwaggerGen` — generates `{ type: "string", format: "date", example: "YYYY-MM-DD" }` for all DateOnly properties in Swagger UI.
+
+#### Dispatch #25: ProductArchitect → `project-notes/api-spec.yaml`
+
+- **Task:** Add ISO 8601 `example` values to all date/date-time fields in component schemas
+- **Status:** ✅ COMPLETED (2026-03-04T12:00:00Z)
+- **Results:** 11 date examples added across AllocationDetailResponse, CreateAllocationRequest, UpdateAllocationRequest, CapacityCheckResponse, CapacityExceededProblem schemas.

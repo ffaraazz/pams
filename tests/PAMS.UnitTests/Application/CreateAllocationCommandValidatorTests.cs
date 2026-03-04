@@ -247,4 +247,52 @@ public sealed class CreateAllocationCommandValidatorTests
         // Assert
         result.ShouldHaveValidationErrorFor(c => c.EmpCode);
     }
+
+    // ─── FromDate Past-Date Validation Tests (TDD Red Phase) ────────────────
+    // The validator currently allows past from-dates. These tests enforce the
+    // rule that fromDate must not be in the past. The past-date test will FAIL
+    // because the validation rule doesn't exist yet.
+
+    [Fact(DisplayName = "FR-010 | Validate_PastFromDate_ShouldFail")]
+    public async Task Validate_PastFromDate_ShouldFail()
+    {
+        // Arrange — fromDate is 7 days in the past
+        var validator = CreateSut();
+        var command = new PAMS.Application.Commands.Allocations.CreateAllocationCommand
+        {
+            ProjectCode = TestData.ProjectCode,
+            EmpCode = TestData.StaffEmpCode,
+            Percentage = 50,
+            FromDate = TestData.Today.AddDays(-7), // past date
+            ToDate = null
+        };
+
+        // Act
+        var result = await validator.TestValidateAsync(command);
+
+        // Assert — will FAIL: validator doesn't reject past from-dates yet
+        result.ShouldHaveValidationErrorFor(c => c.FromDate)
+            .WithErrorMessage("*past*");
+    }
+
+    [Fact(DisplayName = "FR-010 | Validate_TodayFromDate_ShouldPass")]
+    public async Task Validate_TodayFromDate_ShouldPass()
+    {
+        // Arrange — fromDate is today (valid)
+        var validator = CreateSut();
+        var command = new PAMS.Application.Commands.Allocations.CreateAllocationCommand
+        {
+            ProjectCode = TestData.ProjectCode,
+            EmpCode = TestData.StaffEmpCode,
+            Percentage = 50,
+            FromDate = TestData.Today,
+            ToDate = null
+        };
+
+        // Act
+        var result = await validator.TestValidateAsync(command);
+
+        // Assert — today should be accepted
+        result.ShouldNotHaveValidationErrorFor(c => c.FromDate);
+    }
 }

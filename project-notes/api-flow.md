@@ -4,51 +4,52 @@
 
 | Field   | Value                             |
 | ------- | --------------------------------- |
-| Version | 1.0.0                             |
-| Date    | 2026-03-03                        |
+| Version | 1.1.0                             |
+| Date    | 2026-03-04                        |
 | Author  | ProductArchitect (GitHub Copilot) |
 
 ---
 
 ## 1. API Endpoint Master Table
 
-All 27 endpoints in a single reference table.
+All 28 endpoints in a single reference table.
 
-| #   | Verb   | Route                                                  | Auth        | Purpose                                         | Used By       |
-| --- | ------ | ------------------------------------------------------ | ----------- | ----------------------------------------------- | ------------- |
-| 1   | GET    | /api/v1/accounts                                       | CanAllocate | List accounts (paginated, filterable)           | HR            |
-| 2   | GET    | /api/v1/accounts/{accountCode}                         | CanAllocate | Get single account                              | HR            |
-| 3   | POST   | /api/v1/accounts                                       | HROnly      | Create account                                  | HR            |
-| 4   | PUT    | /api/v1/accounts/{accountCode}                         | HROnly      | Update account                                  | HR            |
-| 5   | GET    | /api/v1/projects                                       | Authorize   | List projects (paginated, filterable)           | HR, PM        |
-| 6   | GET    | /api/v1/projects/{projectCode}                         | Authorize   | Get project detail (with allocations + team)    | HR, PM, Staff |
-| 7   | POST   | /api/v1/projects                                       | HROnly      | Create project                                  | HR            |
-| 8   | PUT    | /api/v1/projects/{projectCode}                         | CanAllocate | Update project (PM scoped)                      | HR, PM        |
-| 9   | GET    | /api/v1/employees                                      | CanAllocate | List/search employees (paginated)               | HR, PM        |
-| 10  | GET    | /api/v1/employees/{empCode}                            | Authorize   | Get employee detail with allocations            | HR, PM, Staff |
-| 11  | GET    | /api/v1/employees/me                                   | Authorize   | Get MY profile + allocations + managed projects | Everyone      |
-| 12  | POST   | /api/v1/employees                                      | HROnly      | Create employee                                 | HR            |
-| 13  | PUT    | /api/v1/employees/{empCode}                            | HROnly      | Update employee                                 | HR            |
-| 14  | POST   | /api/v1/allocations                                    | CanAllocate | Create allocation                               | HR, PM        |
-| 15  | GET    | /api/v1/allocations/{id}                               | Authorize   | Get single allocation                           | Anyone        |
-| 16  | PUT    | /api/v1/allocations/{id}                               | CanAllocate | Update allocation % and dates                   | HR, PM        |
-| 17  | PATCH  | /api/v1/allocations/{id}                               | CanAllocate | Stop allocation (set ToDate=today)              | HR, PM        |
-| 18  | DELETE | /api/v1/allocations/{id}                               | CanAllocate | Soft-delete past allocation                     | HR, PM        |
-| 19  | GET    | /api/v1/allocations/capacity-check                     | CanAllocate | Check employee availability in date window      | HR, PM        |
-| 20  | GET    | /api/v1/projects/{code}/team-members                   | CanAllocate | List team-lead/reportee assignments             | HR, PM        |
-| 21  | POST   | /api/v1/projects/{code}/team-members                   | CanAllocate | Add team assignment                             | HR, PM        |
-| 22  | DELETE | /api/v1/projects/{code}/team-members/{lead}/{reportee} | CanAllocate | Remove team assignment                          | HR, PM        |
-| 23  | GET    | /api/v1/skills                                         | Authorize   | List skills                                     | Everyone      |
-| 24  | POST   | /api/v1/skills                                         | HROnly      | Create skill                                    | HR            |
-| 25  | PUT    | /api/v1/skills/{skillId}                               | HROnly      | Update skill                                    | HR            |
-| 26  | GET    | /api/v1/system-config                                  | HROnly      | Get allocation rules                            | HR            |
-| 27  | PUT    | /api/v1/system-config                                  | HROnly      | Update allocation rules                         | HR            |
+| #   | Verb   | Route                                                  | Auth        | Purpose                                      | Used By       |
+| --- | ------ | ------------------------------------------------------ | ----------- | -------------------------------------------- | ------------- |
+| 1   | GET    | /api/v1/accounts                                       | CanAllocate | List accounts (paginated, filterable)        | HR            |
+| 2   | GET    | /api/v1/accounts/{accountCode}                         | CanAllocate | Get single account                           | HR            |
+| 3   | POST   | /api/v1/accounts                                       | HROnly      | Create account                               | HR            |
+| 4   | PUT    | /api/v1/accounts/{accountCode}                         | HROnly      | Update account                               | HR            |
+| 5   | GET    | /api/v1/projects                                       | Authorize   | List projects (paginated, filterable)        | HR, PM        |
+| 6   | GET    | /api/v1/projects/{projectCode}                         | Authorize   | Get project detail (with allocations + team) | HR, PM, Staff |
+| 7   | POST   | /api/v1/projects                                       | HROnly      | Create project                               | HR            |
+| 8   | PUT    | /api/v1/projects/{projectCode}                         | CanAllocate | Update project (PM scoped)                   | HR, PM        |
+| 9   | GET    | /api/v1/employees                                      | CanAllocate | List/search employees (paginated)            | HR, PM        |
+| 10  | GET    | /api/v1/employees/{empCode}                            | Authorize   | Get employee profile (no allocations)        | HR, PM, Staff |
+| 11  | GET    | /api/v1/employees/me                                   | Authorize   | Get MY profile (profile only)                | Everyone      |
+| 12  | POST   | /api/v1/employees                                      | HROnly      | Create employee                              | HR            |
+| 13  | PUT    | /api/v1/employees/{empCode}                            | HROnly      | Update employee                              | HR            |
+| 14  | GET    | /api/v1/allocations                                    | Authorize   | List allocations (paginated, filterable)     | Everyone      |
+| 15  | POST   | /api/v1/allocations                                    | CanAllocate | Create allocation                            | HR, PM        |
+| 16  | GET    | /api/v1/allocations/{id}                               | Authorize   | Get single allocation                        | Anyone        |
+| 17  | PUT    | /api/v1/allocations/{id}                               | CanAllocate | Update allocation % and dates                | HR, PM        |
+| 18  | PATCH  | /api/v1/allocations/{id}                               | CanAllocate | Stop allocation (set ToDate=today)           | HR, PM        |
+| 19  | DELETE | /api/v1/allocations/{id}                               | CanAllocate | Soft-delete past allocation                  | HR, PM        |
+| 20  | GET    | /api/v1/allocations/capacity-check                     | CanAllocate | Check employee availability in date window   | HR, PM        |
+| 21  | GET    | /api/v1/projects/{code}/team-members                   | CanAllocate | List team-lead/reportee assignments          | HR, PM        |
+| 22  | POST   | /api/v1/projects/{code}/team-members                   | CanAllocate | Add team assignment                          | HR, PM        |
+| 23  | DELETE | /api/v1/projects/{code}/team-members/{lead}/{reportee} | CanAllocate | Remove team assignment                       | HR, PM        |
+| 24  | GET    | /api/v1/skills                                         | Authorize   | List skills                                  | Everyone      |
+| 25  | POST   | /api/v1/skills                                         | HROnly      | Create skill                                 | HR            |
+| 26  | PUT    | /api/v1/skills/{skillId}                               | HROnly      | Update skill                                 | HR            |
+| 27  | GET    | /api/v1/system-config                                  | HROnly      | Get allocation rules                         | HR            |
+| 28  | PUT    | /api/v1/system-config                                  | HROnly      | Update allocation rules                      | HR            |
 
 ---
 
 ## 2. Staff Flow
 
-Staff members have read-only access to their own profile, their allocations, and projects they lead.
+Staff members have read-only access to their own profile and can view their allocations and projects they are assigned to.
 
 ### Home Screen
 
@@ -59,12 +60,20 @@ GET /api/v1/employees/me
 Returns:
 
 - Employee profile (name, designation, role, skills)
-- `currentAllocations[]` — projects the staff member is allocated to, with %, dates, and status
-- `managedProjects[]` — projects where this staff member is a Team Lead (via ProjectTeamMembers)
 
-### View a Managed Project
+> `/employees/me` now returns **profile data only**. Allocations and managed projects are no longer embedded.
 
-When staff clicks on a project from `managedProjects[]`:
+### My Allocations
+
+```
+GET /api/v1/allocations?empCode=myEmpCode
+```
+
+Returns paginated list of allocations for the staff member (current, upcoming, and optionally ended). Includes project details, %, dates, status, and resource-level billable flag.
+
+### View a Project I’m Assigned To
+
+When staff clicks on a project from their allocations list:
 
 ```
 GET /api/v1/projects/{projectCode}
@@ -72,7 +81,7 @@ GET /api/v1/projects/{projectCode}
 
 Returns the enriched `ProjectDetailResponse`:
 
-- Project metadata (name, account, PM, status, billable)
+- Project metadata (name, account, PM, status, billable, resourceCount)
 - `allocations[]` — all active allocations on this project (read-only for staff)
 - `teamMembers[]` — team lead/reportee assignments
 
@@ -84,7 +93,7 @@ Returns the enriched `ProjectDetailResponse`:
 GET /api/v1/employees/{empCode}
 ```
 
-Returns employee detail with their current allocations (if the staff member is authorized to view).
+Returns employee profile data (if the staff member is authorized to view).
 
 ### Staff Flow Diagram
 
@@ -96,11 +105,18 @@ Returns employee detail with their current allocations (if the staff member is a
           |
           v
 +---------+-------------------+
-| Profile + allocations[]     |
-| + managedProjects[]         |
+| Profile (name, role, skills)|
 +---------+-------------------+
           |
-    (click managed project)
+    (fetch my allocations)
+          |
+          v
++---------+-------------------+
+| GET /allocations             |
+|   ?empCode=myEmpCode        |
++---------+-------------------+
+          |
+    (click project)
           |
           v
 +---------+-------------------+
@@ -126,8 +142,24 @@ GET /api/v1/employees/me
 Returns:
 
 - Profile + skills
-- `currentAllocations[]` — projects the PM is allocated TO as a resource
-- `managedProjects[]` — projects where the PM is ProjectManager OR TeamLead
+
+> `/employees/me` now returns **profile data only**. Use the dedicated allocation list endpoint for allocation data.
+
+### My Allocations (Projects I’m Allocated To)
+
+```
+GET /api/v1/allocations?empCode=myEmpCode
+```
+
+Returns paginated list of the PM’s own resource allocations.
+
+### Managed Projects Allocations
+
+```
+GET /api/v1/allocations?projectManagerEmpCode=myEmpCode
+```
+
+Returns paginated list of all allocations on projects where the PM is the project manager. Replaces the old `managedProjects[]` embedded collection.
 
 ### Project Detail Screen
 
@@ -202,11 +234,17 @@ DELETE /api/v1/projects/{code}/team-members/{teamLeadEmpCode}/{reporteeEmpCode}
           |
           v
 +---------+-------------------+
-| Profile + allocations[]     |
-| + managedProjects[]         |
+| Profile (name, role, skills)|
 +---------+-------------------+
           |
-    (click managed project)
+    +-----+-----+
+    |           |
+    v           v
+GET /allocations   GET /allocations
+?empCode=me       ?projectManagerEmpCode=me
+(my allocations)  (managed project allocations)
+          |
+    (click project)
           |
           v
 +---------+---------------------------+
@@ -245,7 +283,7 @@ HR has full access to all CRUD operations across the system.
 GET /api/v1/employees/me
 ```
 
-Returns own profile with allocations and managed projects.
+Returns own profile.
 
 ### Manage People
 
@@ -277,6 +315,7 @@ PUT  /api/v1/accounts/{accountCode}   -> Update account (name, type, isActive)
 Same as PM flow — HR can manage allocations on ANY project (not scoped):
 
 ```
+GET    /api/v1/allocations            -> List/filter allocations (paginated)
 POST   /api/v1/allocations            -> Create allocation
 PUT    /api/v1/allocations/{id}       -> Update allocation % or dates
 PATCH  /api/v1/allocations/{id}       -> Stop allocation
@@ -337,11 +376,13 @@ An **Allocation** is an explicit resource assignment that records:
 - **Who** (employee) is working on **what** (project)
 - **When** (fromDate → toDate, or open-ended)
 - **How much** (percentage of capacity: 1–100%)
+- **Billable** (resource-level billable flag, independent from project-level billable)
 
 Allocations are created by HR or PM. They are subject to capacity rules:
 
 - Total overlapping allocations for one employee cannot exceed 100%
 - Minimum percentage and increment are configurable via SystemConfig
+- `fromDate` must not be a past date (≥ today); returns 400 if violated
 
 ### Allocation vs Project Management
 
@@ -352,7 +393,7 @@ Allocations are created by HR or PM. They are subject to capacity rules:
 | Project Manager    | The person who manages the project (can edit allocations, assign team leads) | `project.projectManagerId` — set at project creation or via PUT |
 | Allocated Resource | The person doing the work on the project                                     | `allocations` table — explicit POST /allocations                |
 
-A PM can be both the manager AND an allocated resource, but these are separate records. A PM who only manages (not works on) a project will have no allocation row — they appear in `managedProjects[]` but not in `currentAllocations[]`.
+A PM can be both the manager AND an allocated resource, but these are separate records. A PM who only manages (not works on) a project will have no allocation row — they can find their managed projects via `GET /allocations?projectManagerEmpCode=myEmpCode`.
 
 ### ProjectRole vs Designation
 
@@ -367,22 +408,33 @@ ProjectRole vs Designation: Designation is the org-level title on the Employee e
 | project.projectManagerId = me | allocations row exists |
 | OR TeamLead on project        | with my employeeId     |
 +-----------------------+----------------------------+
-| Shows in: managedProjects[]   | Shows in: currentAllocations[] |
+| Discover via:                   | Discover via:                    |
+| GET /allocations                | GET /allocations                 |
+|   ?projectManagerEmpCode=me     |   ?empCode=me                    |
+| or GET /projects                |                                  |
+|   ?projectManagerEmpCode=me     |                                  |
 +-----------------------+----------------------------+
 ```
 
-### ManagedProjects Computation
+### GET /allocations — Paginated Allocation List (v1.10.0)
 
-The `managedProjects[]` array in `EmployeeDetailResponse` is computed from TWO sources:
+The new `GET /api/v1/allocations` endpoint is the canonical way to query allocations across the system.
 
-1. **ProjectManager**: Projects where `project.projectManagerId = currentUser.employeeId`
-2. **TeamLead**: Projects where the user appears in `project_team_members` as `team_lead_id`
+**Query parameters:**
 
-Each entry includes:
+| Param                   | Type    | Description                                       |
+| ----------------------- | ------- | ------------------------------------------------- |
+| `empCode`               | string  | Filter by allocated employee code                 |
+| `projectCode`           | string  | Filter by project code                            |
+| `projectManagerEmpCode` | string  | Filter allocations on projects managed by this PM |
+| `status`                | string  | `Active`, `Ended`, or `Upcoming` (computed)       |
+| `billable`              | boolean | Filter by resource-level billable flag            |
+| `page`                  | integer | Page number (default: 1)                          |
+| `limit`                 | integer | Items per page (default: 10, max: 100)            |
 
-- Project metadata (code, name, account, status)
-- `managementRole`: either `ProjectManager` or `TeamLead`
-- `activeResourceCount`: count of active allocations on that project
+**Response:** `PagedResponse<AllocationDetailResponse>`
+
+**Auth:** All authenticated users. Role-based scoping is applied in the handler (Staff see only their own; PM see their projects; HR sees all).
 
 ---
 
@@ -390,10 +442,12 @@ Each entry includes:
 
 The following endpoints have been **removed** as of v1.8.0. They are no longer available in the API.
 
-| Removed Endpoint               | Replacement                                                                                                              |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `GET /dashboard/project-view`  | **REMOVED.** Use `GET /projects/{code}` which now includes `Allocations[]` and `TeamMembers[]` in the enriched response. |
-| `GET /dashboard/employee-view` | **REMOVED.** Use `GET /employees` for search + `GET /employees/me` for own profile with `ManagedProjects[]`.             |
+| Removed Endpoint                          | Replacement                                                                                                              |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET /dashboard/project-view`             | **REMOVED.** Use `GET /projects/{code}` which now includes `Allocations[]` and `TeamMembers[]` in the enriched response. |
+| `GET /dashboard/employee-view`            | **REMOVED.** Use `GET /employees` for search + `GET /employees/me` for own profile.                                      |
+| `managedProjects[]` on `/employees/me`    | **REMOVED (v1.10.0).** Use `GET /allocations?projectManagerEmpCode=myEmpCode` instead.                                   |
+| `currentAllocations[]` on `/employees/me` | **REMOVED (v1.10.0).** Use `GET /allocations?empCode=myEmpCode` instead.                                                 |
 
 The `CanViewDashboard` authorization policy has also been **REMOVED**.
 
@@ -405,44 +459,40 @@ In v1.7.0, several response DTOs were enriched to embed related data, reducing t
 
 ### AllocationDetailResponse — New Fields
 
-| Field         | Type                             | Description                                |
-| ------------- | -------------------------------- | ------------------------------------------ |
-| `projectRole` | string (nullable)                | Role the employee performs on this project |
-| `billable`    | boolean                          | Whether the project is billable            |
-| `accountCode` | string                           | Account business code                      |
-| `accountName` | string                           | Account display name                       |
-| `status`      | string (Active, Upcoming, Ended) | Computed allocation status based on dates  |
-| `updatedAt`   | date-time                        | Last modification timestamp                |
+| Field             | Type                             | Description                                                      |
+| ----------------- | -------------------------------- | ---------------------------------------------------------------- |
+| `projectRole`     | string (nullable)                | Role the employee performs on this project                       |
+| `billable`        | boolean                          | Resource-level billable flag (independent from project billable) |
+| `projectBillable` | boolean                          | Project-level billable flag (for reference)                      |
+| `accountCode`     | string                           | Account business code                                            |
+| `accountName`     | string                           | Account display name                                             |
+| `status`          | string (Active, Upcoming, Ended) | Computed allocation status based on dates                        |
+| `updatedAt`       | date-time                        | Last modification timestamp                                      |
 
 These fields are denormalized from the related Employee, Project, and Account entities so that consumers don't need to make additional calls to resolve display data.
 
 ### ProjectDetailResponse (ProjectResponse) — New Fields
 
-| Field         | Type                        | Description                             |
-| ------------- | --------------------------- | --------------------------------------- |
-| `allocations` | AllocationDetailResponse[]  | All active allocations for this project |
-| `teamMembers` | ProjectTeamMemberResponse[] | Team lead/reportee assignments          |
+| Field           | Type                        | Description                             |
+| --------------- | --------------------------- | --------------------------------------- |
+| `resourceCount` | integer                     | Count of active non-deleted allocations |
+| `allocations`   | AllocationDetailResponse[]  | All active allocations for this project |
+| `teamMembers`   | ProjectTeamMemberResponse[] | Team lead/reportee assignments          |
 
 Previously, getting allocations for a project required calling a separate endpoint. Now `GET /projects/{code}` returns everything in one call.
 
-### EmployeeDetailResponse — New Fields
+### EmployeeDetailResponse — Simplified (v1.10.0)
 
-| Field             | Type                 | Description                           |
-| ----------------- | -------------------- | ------------------------------------- |
-| `managedProjects` | ManagedProjectItem[] | Projects where user is PM or TeamLead |
+As of v1.10.0, `EmployeeDetailResponse` returns **profile data only**:
 
-### ManagedProjectItem Schema
+| Field          | Type            | Description               |
+| -------------- | --------------- | ------------------------- |
+| _(inherited)_  | EmployeeSummary | Base employee fields      |
+| `email`        | string          | Email address             |
+| `reportsTo*`   | string/uuid     | Reporting manager details |
+| `skillDetails` | SkillResponse[] | Full skill objects        |
 
-| Field                 | Type                                 | Description                                |
-| --------------------- | ------------------------------------ | ------------------------------------------ |
-| `projectId`           | uuid                                 | Internal project ID                        |
-| `projectCode`         | string                               | Business code                              |
-| `projectName`         | string                               | Display name                               |
-| `accountCode`         | string                               | Parent account code                        |
-| `accountName`         | string                               | Parent account name                        |
-| `managementRole`      | string (ProjectManager, TeamLead)    | How the user manages this project          |
-| `status`              | string (Upcoming, Active, Completed) | Project lifecycle status                   |
-| `activeResourceCount` | integer                              | Count of active allocations on the project |
+The `currentAllocations` and `managedProjects` fields have been **removed**. Use `GET /allocations` with appropriate filters instead.
 
 ### Before vs After — API Call Comparison
 
@@ -461,7 +511,7 @@ PM project detail:
   Total: 3 calls
 ```
 
-**After (v1.7.0):**
+**After (v1.7.0 → v1.9.0):**
 
 ```
 Staff home screen:
@@ -470,5 +520,24 @@ Staff home screen:
 
 PM project detail:
   1. GET /projects/{code}        -> project metadata + allocations + teamMembers
+  Total: 1 call
+```
+
+**After (v1.10.0 — current):**
+
+```
+Staff home screen:
+  1. GET /employees/me             -> profile only
+  2. GET /allocations?empCode=me   -> my allocations (paginated)
+  Total: 2 calls (both lightweight, paginated)
+
+PM home screen:
+  1. GET /employees/me             -> profile only
+  2. GET /allocations?empCode=me   -> my allocations
+  3. GET /allocations?projectManagerEmpCode=me -> managed project allocations
+  Total: 3 calls (all lightweight, paginated)
+
+PM project detail:
+  1. GET /projects/{code}        -> project metadata + allocations + teamMembers + resourceCount
   Total: 1 call
 ```

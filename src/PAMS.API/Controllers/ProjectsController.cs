@@ -70,23 +70,31 @@ public sealed class ProjectsController : ControllerBase
         var totalRecords = await _projectRepo.GetFilteredCountAsync(
             search, accountCode, status, isActive, billable, projectManagerEmpCode, ct);
 
-        var data = projects.Select(p => new ProjectSummaryResponse
+        var data = projects.Select(p =>
         {
-            ProjectId = p.Id,
-            ProjectCode = p.ProjectCode,
-            ProjectName = p.ProjectName,
-            AccountId = p.AccountId,
-            AccountCode = p.Account?.AccountCode ?? string.Empty,
-            AccountName = p.Account?.AccountName ?? string.Empty,
-            ProjectManagerId = p.ProjectManagerId,
-            ProjectManagerEmpCode = p.ProjectManager?.EmpCode,
-            ProjectManagerName = p.ProjectManager is not null
-                ? $"{p.ProjectManager.FirstName} {p.ProjectManager.LastName}" : null,
-            Status = p.Status,
-            Billable = p.Billable,
-            IsActive = p.IsActive,
-            StartDate = p.StartDate,
-            EndDate = p.EndDate
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var resourceCount = (p.Allocations ?? [])
+                .Count(a => a.DeletedAt == null && a.FromDate <= today && (a.ToDate == null || a.ToDate >= today));
+
+            return new ProjectSummaryResponse
+            {
+                ProjectId = p.Id,
+                ProjectCode = p.ProjectCode,
+                ProjectName = p.ProjectName,
+                AccountId = p.AccountId,
+                AccountCode = p.Account?.AccountCode ?? string.Empty,
+                AccountName = p.Account?.AccountName ?? string.Empty,
+                ProjectManagerId = p.ProjectManagerId,
+                ProjectManagerEmpCode = p.ProjectManager?.EmpCode,
+                ProjectManagerName = p.ProjectManager is not null
+                    ? $"{p.ProjectManager.FirstName} {p.ProjectManager.LastName}" : null,
+                Status = p.Status,
+                Billable = p.Billable,
+                IsActive = p.IsActive,
+                StartDate = p.StartDate,
+                EndDate = p.EndDate,
+                ResourceCount = resourceCount
+            };
         }).ToList();
 
         return Ok(new PagedResponse<ProjectSummaryResponse>
@@ -119,6 +127,10 @@ public sealed class ProjectsController : ControllerBase
             .Where(a => a.DeletedAt == null)
             .Select(a => AllocationDetailResponse.MapFrom(a, a.Employee, p))
             .ToList();
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var resourceCount = (p.Allocations ?? [])
+            .Count(a => a.DeletedAt == null && a.FromDate <= today && (a.ToDate == null || a.ToDate >= today));
 
         var teamMembers = (p.TeamMembers ?? [])
             .Select(tm => new ProjectTeamMemberResponse
@@ -156,6 +168,7 @@ public sealed class ProjectsController : ControllerBase
             EndDate = p.EndDate,
             CreatedAt = p.CreatedAt,
             UpdatedAt = p.UpdatedAt,
+            ResourceCount = resourceCount,
             Allocations = allocations,
             TeamMembers = teamMembers
         });

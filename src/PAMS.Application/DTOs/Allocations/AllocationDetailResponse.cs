@@ -20,6 +20,7 @@ public sealed record AllocationDetailResponse
     public DateTime CreatedAt { get; init; }
     public string? ProjectRole { get; init; }
     public bool Billable { get; init; }
+    public bool ProjectBillable { get; init; }
     public string AccountCode { get; init; } = string.Empty;
     public string AccountName { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
@@ -58,7 +59,8 @@ public sealed record AllocationDetailResponse
             ProjectId = allocation.ProjectId,
             ProjectCode = project?.ProjectCode ?? string.Empty,
             ProjectName = project?.ProjectName ?? string.Empty,
-            Billable = project?.Billable ?? false,
+            Billable = allocation.Billable,
+            ProjectBillable = project?.Billable ?? false,
             AccountCode = project?.Account?.AccountCode ?? string.Empty,
             AccountName = project?.Account?.AccountName ?? string.Empty,
             Percentage = allocation.Percentage,

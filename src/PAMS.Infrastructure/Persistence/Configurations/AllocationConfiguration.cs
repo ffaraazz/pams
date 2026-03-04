@@ -43,6 +43,10 @@ public sealed class AllocationConfiguration : IEntityTypeConfiguration<Allocatio
             .HasColumnName("project_role")
             .HasMaxLength(150);
 
+        builder.Property(a => a.Billable)
+            .HasColumnName("billable")
+            .HasDefaultValue(true);
+
         builder.Property(a => a.AllocatedById)
             .HasColumnName("allocated_by_id")
             .IsRequired();

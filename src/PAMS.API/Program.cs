@@ -32,9 +32,12 @@ try
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<ICurrentUserService, PAMS.Infrastructure.Services.CurrentUserService>();
 
-    // MediatR
+    // MediatR + validation pipeline
     builder.Services.AddMediatR(cfg =>
-        cfg.RegisterServicesFromAssembly(typeof(PAMS.Application.Commands.Allocations.CreateAllocationCommand).Assembly));
+    {
+        cfg.RegisterServicesFromAssembly(typeof(PAMS.Application.Commands.Allocations.CreateAllocationCommand).Assembly);
+        cfg.AddOpenBehavior(typeof(PAMS.Application.Behaviors.ValidationBehavior<,>));
+    });
 
     // FluentValidation
     builder.Services.AddValidatorsFromAssemblyContaining<PAMS.Application.Validators.CreateAllocationCommandValidator>();
@@ -72,6 +75,14 @@ try
         var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
         var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
         options.IncludeXmlComments(xmlPath);
+
+        // Map DateOnly to OpenAPI string+date format with example
+        options.MapType<DateOnly>(() => new Microsoft.OpenApi.Models.OpenApiSchema
+        {
+            Type = "string",
+            Format = "date",
+            Example = new Microsoft.OpenApi.Any.OpenApiString(DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd"))
+        });
 
         // OAuth2 Resource Owner Password flow — login with username/password in Swagger
         options.AddSecurityDefinition("oauth2", new Microsoft.OpenApi.Models.OpenApiSecurityScheme

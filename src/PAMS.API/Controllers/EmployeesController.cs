@@ -2,7 +2,6 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PAMS.Application.Commands.Employees;
-using PAMS.Application.DTOs.Allocations;
 using PAMS.Application.DTOs.Common;
 using PAMS.Application.DTOs.Employees;
 using PAMS.Application.Interfaces;
@@ -24,23 +23,17 @@ public sealed class EmployeesController : ControllerBase
     private readonly IMediator _mediator;
     private readonly IEmployeeRepository _employeeRepo;
     private readonly IAllocationRepository _allocationRepo;
-    private readonly IProjectRepository _projectRepo;
-    private readonly IProjectTeamMemberRepository _teamMemberRepo;
     private readonly ICurrentUserService _currentUser;
 
     public EmployeesController(
         IMediator mediator,
         IEmployeeRepository employeeRepo,
         IAllocationRepository allocationRepo,
-        IProjectRepository projectRepo,
-        IProjectTeamMemberRepository teamMemberRepo,
         ICurrentUserService currentUser)
     {
         _mediator = mediator;
         _employeeRepo = employeeRepo;
         _allocationRepo = allocationRepo;
-        _projectRepo = projectRepo;
-        _teamMemberRepo = teamMemberRepo;
         _currentUser = currentUser;
     }
 
@@ -124,14 +117,8 @@ public sealed class EmployeesController : ControllerBase
     /// </summary>
     /// <remarks>
     /// Returns employee detail with current allocation status.
-    /// By default, only active and upcoming allocations are included.
-    /// Use includeEnded=true to include past allocations. includeRemoved=true (HR only) includes soft-deleted allocations.
     /// </remarks>
     /// <param name="empCode">Unique employee business code.</param>
-    /// <param name="windowFrom">Start of availability window (default: today).</param>
-    /// <param name="windowTo">End of availability window (default: today).</param>
-    /// <param name="includeEnded">Include ended (past) allocations.</param>
-    /// <param name="includeRemoved">HR only. Include soft-deleted allocations.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Employee detail with allocations.</returns>
     [HttpGet("{empCode}")]
@@ -140,16 +127,12 @@ public sealed class EmployeesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<EmployeeDetailResponse>> GetByCode(
         string empCode,
-        [FromQuery] DateOnly? windowFrom = null,
-        [FromQuery] DateOnly? windowTo = null,
-        [FromQuery] bool includeEnded = false,
-        [FromQuery] bool includeRemoved = false,
         CancellationToken ct = default)
     {
         var employee = await _employeeRepo.GetByEmpCodeAsync(empCode, ct);
         if (employee is null) return NotFound();
 
-        return Ok(await BuildEmployeeDetailResponse(employee, includeEnded, includeRemoved, ct));
+        return Ok(await BuildEmployeeDetailResponse(employee, ct));
     }
 
     /// <summary>
@@ -159,22 +142,18 @@ public sealed class EmployeesController : ControllerBase
     /// Returns the full employee detail for the currently authenticated user.
     /// Uses the employee ID from the Keycloak token sub claim. Available to all roles.
     /// </remarks>
-    /// <param name="windowFrom">Start of availability window (default: today).</param>
-    /// <param name="windowTo">End of availability window (default: today).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Authenticated user's employee profile.</returns>
     [HttpGet("me")]
     [ProducesResponseType(typeof(EmployeeDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<EmployeeDetailResponse>> GetMe(
-        [FromQuery] DateOnly? windowFrom = null,
-        [FromQuery] DateOnly? windowTo = null,
         CancellationToken ct = default)
     {
         var employee = await _employeeRepo.GetByEmpCodeAsync(_currentUser.EmpCode, ct);
         if (employee is null) return NotFound();
 
-        return Ok(await BuildEmployeeDetailResponse(employee, false, false, ct));
+        return Ok(await BuildEmployeeDetailResponse(employee, ct));
     }
 
     /// <summary>
@@ -202,7 +181,7 @@ public sealed class EmployeesController : ControllerBase
         var employee = await _employeeRepo.GetByIdAsync(employeeId, ct);
 
         var detail = employee is not null
-            ? await BuildEmployeeDetailResponse(employee, false, false, ct)
+            ? await BuildEmployeeDetailResponse(employee, ct)
             : null;
 
         return CreatedAtAction(nameof(GetByCode),
@@ -251,87 +230,24 @@ public sealed class EmployeesController : ControllerBase
 
         var employee = await _employeeRepo.GetByEmpCodeAsync(empCode, ct);
         var detail = employee is not null
-            ? await BuildEmployeeDetailResponse(employee, false, false, ct)
+            ? await BuildEmployeeDetailResponse(employee, ct)
             : null;
 
         return Ok(detail);
     }
 
     private async Task<EmployeeDetailResponse> BuildEmployeeDetailResponse(
-        Domain.Entities.Employee employee, bool includeEnded, bool includeRemoved,
+        Domain.Entities.Employee employee,
         CancellationToken ct)
     {
         var allocations = await _allocationRepo.GetByEmployeeAsync(employee.Id, ct);
         var today = DateOnly.FromDateTime(DateTime.Today);
-
-        var filtered = allocations
-            .Where(a =>
-            {
-                if (a.DeletedAt != null && !includeRemoved) return false;
-                if (!includeEnded && a.ToDate.HasValue && a.ToDate.Value < today) return false;
-                return true;
-            })
-            .ToList();
 
         var activeAllocations = allocations
             .Where(a => a.DeletedAt == null && a.FromDate <= today && (a.ToDate == null || a.ToDate >= today))
             .ToList();
         var totalPct = activeAllocations.Sum(a => a.Percentage);
         var availability = Math.Max(0, 100 - totalPct);
-
-        // Build managed projects list (PM role + TeamLead role)
-        var managedProjects = new List<ManagedProjectItem>();
-
-        // Projects where employee is ProjectManager
-        if (employee.ManagedProjects is not null)
-        {
-            foreach (var p in employee.ManagedProjects)
-            {
-                var activeCount = (p.Allocations ?? (ICollection<Domain.Entities.Allocation>)[])
-                    .Count(a => a.DeletedAt == null && a.FromDate <= today && (a.ToDate == null || a.ToDate >= today));
-
-                managedProjects.Add(new ManagedProjectItem
-                {
-                    ProjectId = p.Id,
-                    ProjectCode = p.ProjectCode,
-                    ProjectName = p.ProjectName,
-                    AccountCode = p.Account?.AccountCode ?? string.Empty,
-                    AccountName = p.Account?.AccountName ?? string.Empty,
-                    ManagementRole = "ProjectManager",
-                    Status = p.Status,
-                    ActiveResourceCount = activeCount
-                });
-            }
-        }
-
-        // Projects where employee is TeamLead (via ProjectTeamMembers)
-        var teamLeadAssignments = await _teamMemberRepo.GetByTeamLeadAsync(employee.Id, ct);
-        var teamLeadProjectIds = teamLeadAssignments
-            .Select(tm => tm.ProjectId)
-            .Distinct()
-            .Where(pid => !managedProjects.Any(mp => mp.ProjectId == pid));
-
-        foreach (var pid in teamLeadProjectIds)
-        {
-            var tlProject = teamLeadAssignments.FirstOrDefault(tm => tm.ProjectId == pid)?.Project;
-            if (tlProject is not null)
-            {
-                var activeCount = (tlProject.Allocations ?? (ICollection<Domain.Entities.Allocation>)[])
-                    .Count(a => a.DeletedAt == null && a.FromDate <= today && (a.ToDate == null || a.ToDate >= today));
-
-                managedProjects.Add(new ManagedProjectItem
-                {
-                    ProjectId = tlProject.Id,
-                    ProjectCode = tlProject.ProjectCode,
-                    ProjectName = tlProject.ProjectName,
-                    AccountCode = tlProject.Account?.AccountCode ?? string.Empty,
-                    AccountName = tlProject.Account?.AccountName ?? string.Empty,
-                    ManagementRole = "TeamLead",
-                    Status = tlProject.Status,
-                    ActiveResourceCount = activeCount
-                });
-            }
-        }
 
         return new EmployeeDetailResponse
         {
@@ -357,10 +273,6 @@ public sealed class EmployeesController : ControllerBase
                 SkillName = es.Skill?.SkillName ?? string.Empty,
                 IsActive = es.Skill?.IsActive ?? false
             }).ToList(),
-            CurrentAllocations = filtered
-                .Select(a => AllocationDetailResponse.MapFrom(a, employee, a.Project))
-                .ToList(),
-            ManagedProjects = managedProjects,
             CreatedAt = employee.CreatedAt,
             UpdatedAt = employee.UpdatedAt
         };

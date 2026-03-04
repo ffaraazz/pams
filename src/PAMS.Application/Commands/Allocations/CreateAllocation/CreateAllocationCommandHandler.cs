@@ -78,6 +78,7 @@ public sealed class CreateAllocationCommandHandler
             ToDate = request.ToDate,
             Percentage = request.Percentage,
             ProjectRole = request.ProjectRole,
+            Billable = request.Billable,
             AllocatedById = _currentUser.EmployeeId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -94,7 +95,9 @@ public sealed class CreateAllocationCommandHandler
             project.ProjectCode,
             allocation.Percentage,
             allocation.FromDate,
-            allocation.ToDate
+            allocation.ToDate,
+            allocation.Billable,
+            allocation.ProjectRole
         }, cancellationToken);
 
         // 7. Map response

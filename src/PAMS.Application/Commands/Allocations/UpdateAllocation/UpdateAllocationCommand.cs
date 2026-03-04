@@ -13,4 +13,5 @@ public sealed record UpdateAllocationCommand : IRequest<AllocationDetailResponse
     public DateOnly? ToDate { get; init; }
     public required int Percentage { get; init; }
     public string? ProjectRole { get; init; }
+    public bool? Billable { get; init; }
 }

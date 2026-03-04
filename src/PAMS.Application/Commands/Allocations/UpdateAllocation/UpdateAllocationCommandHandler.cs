@@ -74,6 +74,8 @@ public sealed class UpdateAllocationCommandHandler
         allocation.Percentage = request.Percentage;
         if (request.ProjectRole is not null)
             allocation.ProjectRole = request.ProjectRole;
+        if (request.Billable.HasValue)
+            allocation.Billable = request.Billable.Value;
         allocation.UpdatedAt = DateTime.UtcNow;
 
         _allocationRepo.Update(allocation);
@@ -86,7 +88,9 @@ public sealed class UpdateAllocationCommandHandler
             allocation.Id,
             allocation.Percentage,
             allocation.FromDate,
-            allocation.ToDate
+            allocation.ToDate,
+            allocation.Billable,
+            allocation.ProjectRole
         }, cancellationToken);
 
         return AllocationDetailResponse.MapFrom(allocation, employee, project);

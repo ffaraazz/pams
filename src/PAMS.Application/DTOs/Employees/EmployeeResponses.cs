@@ -31,8 +31,6 @@ public sealed record EmployeeDetailResponse
     public string? ReportsToName { get; init; }
     public List<string> Skills { get; init; } = [];
     public List<SkillDetailItem> SkillDetails { get; init; } = [];
-    public List<Allocations.AllocationDetailResponse> CurrentAllocations { get; init; } = [];
-    public List<ManagedProjectItem> ManagedProjects { get; init; } = [];
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }

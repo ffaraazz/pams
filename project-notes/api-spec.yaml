@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Project Allocation Management System (PAMS) API
-  version: 1.9.0
+  version: 1.10.0
   description: |
     REST API for the Project Allocation Management System.
     All endpoints require a Keycloak-issued OIDC Bearer token unless stated otherwise.
@@ -15,7 +15,9 @@ info:
     **Consolidated REST design:** Deactivation is handled via PUT (state change), allocation stop via PATCH, allocation remove via DELETE (soft-delete).
     **Billable flag & project status:** Projects carry a `billable` boolean (defaults to true for Client accounts) and a lifecycle `status` (Upcoming → Active → Completed). Both HR and PM (scoped to own projects) can modify status.
     **Code-based identifiers:** Path parameters use unique business codes (`accountCode`, `projectCode`, `empCode`) instead of UUIDs for human-readable URLs. Allocations and skills use UUID (no natural business code). Responses include both UUIDs and codes.
-    **Enriched DTOs (v1.7.0):** Resource endpoints now embed related data — ProjectResponse includes allocations and team members, EmployeeDetailResponse includes managedProjects, AllocationDetailResponse includes projectRole/billable/account/status. Dashboard endpoints have been removed (v1.8.0) in favor of enriched resource endpoints.
+    **Enriched DTOs (v1.7.0):** Resource endpoints now embed related data — ProjectResponse includes allocations and team members, AllocationDetailResponse includes projectRole/billable/account/status. Dashboard endpoints have been removed (v1.8.0) in favor of enriched resource endpoints.
+    **Simplified Employee (v1.10.0):** `GET /employees/me` and `GET /employees/{empCode}` return profile data only (no embedded `currentAllocations` or `managedProjects`). Use `GET /allocations` with filters instead.
+    **Resource-level billable (v1.10.0):** Allocations carry their own `billable` flag (independent from project-level billable). AllocationDetailResponse exposes both `billable` (resource) and `projectBillable` (project).
   contact:
     name: PAMS Engineering
   license:
@@ -569,11 +571,10 @@ paths:
 
     get:
       tags: [Employees]
-      summary: Get employee by code with allocation details
+      summary: Get employee by code (profile only)
       description: |
-        Returns employee detail with current allocation status.
-        By default, only active and upcoming allocations are included in `currentAllocations`.
-        Use `includeEnded=true` to include past allocations. `includeRemoved=true` (HR only) includes soft-deleted allocations.
+        Returns employee profile data (name, designation, role, skills, reporting chain).
+        Does NOT include allocations or managed projects. Use `GET /allocations?empCode=...` to fetch allocations separately.
       operationId: employees_getByCode
       parameters:
         - name: windowFrom
@@ -588,18 +589,6 @@ paths:
             type: string
             format: date
           description: "End of availability window (default: today)."
-        - name: includeEnded
-          in: query
-          schema:
-            type: boolean
-            default: false
-          description: Include ended (past) allocations in currentAllocations array.
-        - name: includeRemoved
-          in: query
-          schema:
-            type: boolean
-            default: false
-          description: HR only. Include soft-deleted allocations in currentAllocations array.
       responses:
         "200":
           description: Employee detail with current allocation status
@@ -649,7 +638,8 @@ paths:
       tags: [Employees]
       summary: Get authenticated user's own profile (all roles)
       description: |
-        Returns the full employee detail for the currently authenticated user.
+        Returns the employee profile for the currently authenticated user (profile only — no embedded allocations or managed projects).
+        Use `GET /allocations?empCode=myEmpCode` for allocations and `GET /allocations?projectManagerEmpCode=myEmpCode` for managed-project allocations.
         Resolves the authenticated user via the `empCode` JWT claim and database lookup. See NFR-22 for identity resolution details.
       operationId: employees_me
       parameters:
@@ -856,6 +846,53 @@ paths:
   # ── ALLOCATIONS ────────────────────────────────────────────────────────────
 
   /allocations:
+    get:
+      tags: [Allocations]
+      summary: List allocations (paginated, filterable)
+      description: |
+        Paginated list of allocations with optional filters.
+        All authenticated users can call this endpoint; role-based scoping is applied in the handler
+        (e.g. Staff see only their own allocations, PM see allocations on their projects).
+      operationId: allocations_list
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: empCode
+          in: query
+          schema:
+            type: string
+          description: Filter by allocated employee code.
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+          description: Filter by project code.
+        - name: projectManagerEmpCode
+          in: query
+          schema:
+            type: string
+          description: Filter allocations on projects managed by this PM (by empCode). Use with current user's empCode to get "my managed project allocations".
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [Active, Ended, Upcoming]
+          description: Filter by computed allocation status.
+        - name: billable
+          in: query
+          schema:
+            type: boolean
+          description: Filter by resource-level billable flag.
+      responses:
+        "200":
+          description: Paginated list of allocations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse_AllocationDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
     post:
       tags: [Allocations]
       summary: Create a new allocation (HR, PM)
@@ -864,6 +901,7 @@ paths:
         PM can only allocate to projects they manage.
         Allocation % must be ≥ minAllocationPct (default 25) and a multiple of allocationIncrement (default 5).
         Total overlapping allocations for the employee must not exceed 100%.
+        **Validation:** `fromDate` must not be a past date (>= today). Returns 400 if violated.
       operationId: allocations_create
       requestBody:
         required: true
@@ -1382,6 +1420,7 @@ components:
                 conflictFrom:
                   type: string
                   format: date
+                  example: "2026-04-01"
                 currentTotal:
                   type: integer
                 requested:
@@ -1545,12 +1584,18 @@ components:
         endDate:
           type: ["string", "null"]
           format: date
+        resourceCount:
+          type: integer
+          description: "Count of active non-deleted allocations on this project."
 
     ProjectResponse:
       allOf:
         - $ref: "#/components/schemas/ProjectSummary"
         - type: object
           properties:
+            resourceCount:
+              type: integer
+              description: "Count of active non-deleted allocations on this project."
             allocations:
               type: array
               items:
@@ -1685,16 +1730,6 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/SkillResponse"
-            currentAllocations:
-              type: array
-              items:
-                $ref: "#/components/schemas/AllocationDetailResponse"
-              description: Active and upcoming allocations.
-            managedProjects:
-              type: array
-              items:
-                $ref: "#/components/schemas/ManagedProjectItem"
-              description: Projects where user is PM or TeamLead
             createdAt:
               type: string
               format: date-time
@@ -1775,35 +1810,6 @@ components:
         isActive:
           type: boolean
           description: "Set to false to deactivate. Active allocations are NOT automatically ended."
-
-    # ── Managed Project Item ──────────────────────────────────────────────
-
-    ManagedProjectItem:
-      type: object
-      description: A project where the employee is either the Project Manager or a Team Lead.
-      properties:
-        projectId:
-          type: string
-          format: uuid
-        projectCode:
-          type: string
-        projectName:
-          type: string
-        accountCode:
-          type: string
-        accountName:
-          type: string
-        managementRole:
-          type: string
-          enum: [ProjectManager, TeamLead]
-          description: How the employee manages this project
-        status:
-          type: string
-          enum: [Upcoming, Active, Completed]
-          description: Project lifecycle status
-        activeResourceCount:
-          type: integer
-          description: Count of active allocations on this project
 
     # ── Project Team Members (FR-020) ──────────────────────────────────────
 
@@ -1917,7 +1923,10 @@ components:
           type: string
         billable:
           type: boolean
-          description: Whether the project is billable
+          description: "Resource-level billable flag (independent from project billable)"
+        projectBillable:
+          type: boolean
+          description: "Project-level billable flag (for reference)"
         accountCode:
           type: string
           description: Account business code
@@ -1931,9 +1940,11 @@ components:
         fromDate:
           type: string
           format: date
+          example: "2026-03-15"
         toDate:
           type: ["string", "null"]
           format: date
+          example: "2026-12-31"
           description: Null indicates an open-ended allocation.
         status:
           type: string
@@ -1942,9 +1953,11 @@ components:
         createdAt:
           type: string
           format: date-time
+          example: "2026-03-04T10:30:00Z"
         updatedAt:
           type: string
           format: date-time
+          example: "2026-03-04T10:30:00Z"
           description: Last modification timestamp
 
     CreateAllocationRequest:
@@ -1962,9 +1975,11 @@ components:
         fromDate:
           type: string
           format: date
+          example: "2026-04-01"
         toDate:
           type: ["string", "null"]
           format: date
+          example: "2026-12-31"
           description: Omit or null for open-ended allocation.
         percentage:
           type: integer
@@ -1975,6 +1990,10 @@ components:
         projectRole:
           type: ["string", "null"]
           description: "Optional project-specific role"
+        billable:
+          type: boolean
+          description: "Resource-level billable flag. Defaults to true if omitted."
+          default: true
 
     UpdateAllocationRequest:
       type: object
@@ -1983,9 +2002,11 @@ components:
         fromDate:
           type: string
           format: date
+          example: "2026-04-01"
         toDate:
           type: ["string", "null"]
           format: date
+          example: "2026-12-31"
         percentage:
           type: integer
           minimum: 1
@@ -1993,6 +2014,9 @@ components:
         projectRole:
           type: ["string", "null"]
           description: "Optional project-specific role update"
+        billable:
+          type: boolean
+          description: "Resource-level billable flag."
 
     CapacityCheckResponse:
       type: object
@@ -2002,9 +2026,11 @@ components:
         windowFrom:
           type: string
           format: date
+          example: "2026-04-01"
         windowTo:
           type: ["string", "null"]
           format: date
+          example: "2026-12-31"
         currentTotalPercentage:
           type: integer
           minimum: 0
@@ -2017,6 +2043,16 @@ components:
           description: 100 - currentTotalPercentage.
         allocationStatus:
           $ref: "#/components/schemas/AllocationStatus"
+
+    PagedResponse_AllocationDetail:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllocationDetailResponse"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
 
     # ── System Config ──────────────────────────────────────────────────────
 

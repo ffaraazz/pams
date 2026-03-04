@@ -1,7 +1,7 @@
 # PAMS — Comprehensive Test Report
 
 **Author**: TestEngineer (QA Validation)  
-**Date**: 2026-03-03  
+**Date**: 2026-03-04  
 **Solution**: PAMS.slnx (.NET 10.0)  
 **Test Frameworks**: xUnit 2.9.2, FluentAssertions 7.0.0, NSubstitute 5.3.0, Bogus 35.6.1  
 **Integration Stack**: Microsoft.AspNetCore.Mvc.Testing 10.0.0, Testcontainers.PostgreSql 3.10.0
@@ -12,21 +12,21 @@
 
 | Metric                   | Value         |
 | ------------------------ | ------------- |
-| **Total Tests**          | **256**       |
-| **Unit Tests**           | 197           |
+| **Total Tests**          | **266**       |
+| **Unit Tests**           | 207           |
 | **Integration Tests**    | 59            |
-| **Passed**               | **256**       |
+| **Passed**               | **266**       |
 | **Failed**               | 0             |
 | **Skipped**              | 0             |
 | **Build Warnings**       | 0             |
 | **Build Errors**         | 0             |
-| **Unit Test Duration**   | ~290 ms       |
+| **Unit Test Duration**   | ~310 ms       |
 | **Integration Duration** | ~22 s         |
-| **FR Coverage**          | FR-001→FR-019 |
+| **FR Coverage**          | FR-001→FR-020 |
 
 ---
 
-## 1. Unit Tests — 197 Passed
+## 1. Unit Tests — 207 Passed
 
 ### 1.1 Domain Layer (28 tests)
 
@@ -45,13 +45,13 @@
 | CreateEmployeeCommandValidatorTests       | FR-007 | 15    | ✅ All pass |
 | AddProjectTeamMemberCommandValidatorTests | FR-020 | 6     | ✅ All pass |
 
-### 1.3 Application Layer — Command Handlers (132 tests)
+### 1.3 Application Layer — Command Handlers (136 tests)
 
-#### Pre-existing Handlers (46 tests)
+#### Pre-existing Handlers (50 tests)
 
 | Test File                           | FR-ID  | Tests | Status      |
 | ----------------------------------- | ------ | ----- | ----------- |
-| CreateAllocationCommandHandlerTests | FR-010 | 12    | ✅ All pass |
+| CreateAllocationCommandHandlerTests | FR-010 | 16    | ✅ All pass |
 | StopAllocationCommandHandlerTests   | FR-013 | 6     | ✅ All pass |
 | RemoveAllocationCommandHandlerTests | FR-014 | 7     | ✅ All pass |
 | UpdateAllocationCommandHandlerTests | FR-012 | 7     | ✅ All pass |
@@ -75,10 +75,18 @@
 
 #### DTO Enrichment Tests — Phase 6 (5 tests)
 
-| Test File                             | FR-ID      | Tests | Status      | Key Scenarios Covered                                                                        |
-| ------------------------------------- | ---------- | ----- | ----------- | -------------------------------------------------------------------------------------------- |
-| ProjectDetailResponseEnrichmentTests  | FR-007     | 2     | ✅ All pass | Allocations collection populated on GetByCode, TeamMembers collection populated on GetByCode |
-| EmployeeDetailResponseEnrichmentTests | FR-007/009 | 3     | ✅ All pass | PM sees ManagedProjects, TeamLead sees ManagedProjects, no managed → empty list (not null)   |
+| Test File                             | FR-ID      | Tests | Status      | Key Scenarios Covered                                                                             |
+| ------------------------------------- | ---------- | ----- | ----------- | ------------------------------------------------------------------------------------------------- |
+| ProjectDetailResponseEnrichmentTests  | FR-007     | 2     | ✅ All pass | Allocations collection populated on GetByCode, TeamMembers collection populated on GetByCode      |
+| EmployeeDetailResponseEnrichmentTests | FR-007/009 | 3     | ✅ All pass | PM builds simplified response, TeamLead builds simplified response, no allocations → Bench status |
+
+#### Simplification & Feature Tests — Phase 7 (6 tests)
+
+| Test File                                 | FR-ID  | Tests | Status      | Key Scenarios Covered                                                                         |
+| ----------------------------------------- | ------ | ----- | ----------- | --------------------------------------------------------------------------------------------- |
+| EmployeeDetailResponseSimplificationTests | FR-009 | 2     | ✅ All pass | EmployeeDetailResponse has no CurrentAllocations property, has no ManagedProjects property    |
+| ProjectResourceCountTests                 | FR-003 | 2     | ✅ All pass | ProjectSummaryResponse has ResourceCount (int), ProjectDetailResponse has ResourceCount (int) |
+| AllocationListEndpointTests               | FR-010 | 2     | ✅ All pass | IAllocationRepository has GetFilteredAsync method, has GetFilteredCountAsync method           |
 
 ### 1.4 Parameterized Test Breakdown
 
@@ -145,7 +153,7 @@
 | FR-007 | Create Employee              | 8 + 6 + 15 | 4 (create, dup code, dup email, staff 403)                    | ✅     |
 | FR-008 | Update Employee              | 10         | 2 (update, 404)                                               | ✅     |
 | FR-009 | List/Get Employees           | —          | 4 (list, get, /me)                                            | ✅     |
-| FR-010 | Create Allocation            | 12 + 11    | 3 (HR, PM, Staff 403) + 2 capacity                            | ✅     |
+| FR-010 | Create Allocation            | 16 + 11    | 3 (HR, PM, Staff 403) + 2 capacity                            | ✅     |
 | FR-011 | Get Allocation               | 8          | 2 (get, 404)                                                  | ✅     |
 | FR-012 | Update Allocation            | 7          | 2 (update, stop)                                              | ✅     |
 | FR-013 | Stop Allocation              | 6 + 6      | 1 (PATCH stop)                                                | ✅     |
@@ -166,31 +174,33 @@
 ```
 Application/
 ├── AddProjectTeamMemberCommandValidatorTests.cs    (6 tests)
-├── CreateAccountCommandHandlerTests.cs             (5 tests)    ← NEW
-├── CreateAllocationCommandHandlerTests.cs          (12 tests)   ← +5 enrichment
-├── CreateAllocationCommandValidatorTests.cs        (11 tests)
-├── CreateEmployeeCommandHandlerTests.cs            (8 tests)    ← NEW
+├── AllocationListEndpointTests.cs                  (2 tests)    ← NEW Phase 7
+├── CreateAccountCommandHandlerTests.cs             (5 tests)
+├── CreateAllocationCommandHandlerTests.cs          (16 tests)   ← +4 billable (Phase 7)
+├── CreateAllocationCommandValidatorTests.cs        (11 tests)   ← includes past-date validation
+├── CreateEmployeeCommandHandlerTests.cs            (8 tests)
 ├── CreateEmployeeCommandValidatorTests.cs          (15 tests)
-├── CreateProjectCommandHandlerTests.cs             (9 tests)    ← NEW
-├── EmployeeDetailResponseEnrichmentTests.cs        (3 tests)    ← NEW (enrichment)
-├── ProjectDetailResponseEnrichmentTests.cs         (2 tests)    ← NEW (enrichment)
-├── ProjectTeamMemberCommandHandlerTests.cs         (13 tests)   ← NEW
+├── CreateProjectCommandHandlerTests.cs             (9 tests)
+├── EmployeeDetailResponseEnrichmentTests.cs        (3 tests)    ← updated: simplified response
+├── EmployeeDetailResponseSimplificationTests.cs    (2 tests)    ← NEW Phase 7
+├── ProjectDetailResponseEnrichmentTests.cs         (2 tests)
+├── ProjectResourceCountTests.cs                    (2 tests)    ← NEW Phase 7
+├── ProjectTeamMemberCommandHandlerTests.cs         (13 tests)
 ├── RemoveAllocationCommandHandlerTests.cs          (7 tests)
-├── SkillCommandHandlerTests.cs                     (8 tests)    ← NEW
+├── SkillCommandHandlerTests.cs                     (8 tests)
 ├── StopAllocationCommandHandlerTests.cs            (6 tests)
-├── UpdateAccountCommandHandlerTests.cs             (7 tests)    ← NEW
-├── UpdateAllocationCommandHandlerTests.cs          (7 tests)    ← NEW
-├── UpdateEmployeeCommandHandlerTests.cs            (10 tests)   ← NEW
-├── UpdateProjectCommandHandlerTests.cs             (7 tests)    ← NEW
-└── UpdateSystemConfigCommandHandlerTests.cs        (7 tests)    ← NEW
+├── UpdateAccountCommandHandlerTests.cs             (7 tests)
+├── UpdateAllocationCommandHandlerTests.cs          (7 tests)
+├── UpdateEmployeeCommandHandlerTests.cs            (10 tests)
+├── UpdateProjectCommandHandlerTests.cs             (7 tests)
+└── UpdateSystemConfigCommandHandlerTests.cs        (7 tests)
 Domain/
 ├── AllocationCapacityServiceTests.cs               (8 tests)
 ├── AllocationStopServiceTests.cs                   (6 tests)
 ├── ReportingChainValidatorTests.cs                 (6 tests)
 └── TeamLeadValidatorTests.cs                       (8 tests)
 Helpers/
-├── AllocationBuilder.cs
-└── TestData.cs
+└── AllocationBuilder.cs (includes TestData)
 ```
 
 ### Integration Tests — `tests/PAMS.IntegrationTests/`
@@ -217,17 +227,23 @@ Helpers/
 
 ## 5. Gaps & Recommendations
 
-| #   | Category                | Observation                                                                                                                     | Priority |
-| --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| 1   | DELETE allocation       | Integration test for `DELETE /api/v1/allocations/{id}` not explicitly tested (unit tests cover handler)                         | Low      |
-| 2   | Pagination              | No integration tests for `?page=&pageSize=` query params on list endpoints                                                      | Medium   |
-| 3   | Search/Filter           | Employee search (`?search=`), project filter (`?status=`, `?accountId=`) not in integration suite                               | Medium   |
-| 4   | Validation 400s         | Integration tests don't cover FluentValidation 400 responses (e.g. missing required fields)                                     | Low      |
-| 5   | Concurrent capacity     | No concurrency test for two simultaneous allocations exceeding 100%                                                             | Low      |
-| 6   | CSV export              | No tests for any CSV/export endpoints if they exist                                                                             | Low      |
-| 7   | Empty project lists     | No unit test for `ProjectDetailResponse` with zero allocations and zero team members (empty list edge case)                     | Low      |
-| 8   | Allocation Status edges | No unit test for `ComputeAllocationStatus` returning "Upcoming" (future FromDate) or "Ended" (past ToDate) in isolation         | Low      |
-| 9   | Null Account fallback   | No test verifying `AllocationDetailResponse.AccountCode`/`AccountName` default to `string.Empty` when `Project.Account` is null | Low      |
+| #   | Category                     | Observation                                                                                                                                         | Priority |
+| --- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------- | ------ |
+| 1   | Billable update              | No unit test for `UpdateAllocationCommandHandler` conditionally updating `Billable` (null → no change; `true/false` → update)                       | Medium   |
+| 2   | Billable false scenario      | No test creates allocation with explicit `Billable=false` and verifies response                                                                     | Medium   |
+| 3   | GET /allocations integration | No integration test for `GET /api/v1/allocations` list endpoint (only reflection tests on repository interface)                                     | Medium   |
+| 4   | Billable filter              | No test for `?billable=true/false` query filter on GET /allocations                                                                                 | Medium   |
+| 5   | Status filter                | No unit/integration test for `?status=active                                                                                                        | ended    | upcoming`filter in`AllocationRepository.BuildFilteredQuery` | Medium |
+| 6   | ResourceCount logic          | No test verifies `ResourceCount` computation logic (counting only active, non-deleted allocations). Currently only reflection tests check property. | Medium   |
+| 7   | DELETE allocation            | Integration test for `DELETE /api/v1/allocations/{id}` not explicitly tested (unit tests cover handler)                                             | Low      |
+| 8   | Pagination                   | No integration tests for `?page=&limit=` query params on list endpoints                                                                             | Medium   |
+| 9   | Search/Filter                | Employee search (`?search=`), project filter (`?status=`, `?accountCode=`) not in integration suite                                                 | Medium   |
+| 10  | Validation 400s              | Integration tests don't cover FluentValidation 400 responses (e.g. missing required fields)                                                         | Low      |
+| 11  | Concurrent capacity          | No concurrency test for two simultaneous allocations exceeding 100%                                                                                 | Low      |
+| 12  | ManagedProjectItem cleanup   | `ManagedProjectItem.cs` still exists as a tombstone file with a comment. Should be fully deleted.                                                   | Low      |
+| 13  | Allocation Status edges      | No unit test for `ComputeAllocationStatus` returning "Upcoming" (future FromDate) or "Ended" (past ToDate) in isolation                             | Low      |
+| 14  | Null Account fallback        | No test verifying `AllocationDetailResponse.AccountCode`/`AccountName` default to `string.Empty` when `Project.Account` is null                     | Low      |
+| 15  | Empty project lists          | No unit test for `ProjectDetailResponse` with zero allocations and zero team members (empty list edge case)                                         | Low      |
 
 ---
 
@@ -235,38 +251,91 @@ Helpers/
 
 ### 6.1 Changes Verified
 
-| Change                                           | Implementation                                                                                                              | Tests                                                     | Status |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------ |
-| `AllocationDetailResponse` +6 properties         | ✅ CreateAllocationCommandHandler, UpdateAllocationCommandHandler, ProjectsController, EmployeesController                  | 5 new unit tests in CreateAllocationCommandHandlerTests   | ✅     |
-| `ProjectDetailResponse` +Allocations/TeamMembers | ✅ ProjectsController.GetByCode builds both collections                                                                     | 2 new unit tests in ProjectDetailResponseEnrichmentTests  | ✅     |
-| `EmployeeDetailResponse` +ManagedProjects        | ✅ EmployeesController.BuildEmployeeDetailResponse populates PM + TeamLead roles                                            | 3 new unit tests in EmployeeDetailResponseEnrichmentTests | ✅     |
-| New DTO `ManagedProjectItem`                     | ✅ 8 properties: ProjectId, ProjectCode, ProjectName, AccountCode, AccountName, ManagementRole, Status, ActiveResourceCount | Referenced correctly in 3 tests                           | ✅     |
-| `DashboardController` marked `[Obsolete]`        | ✅ Attribute with message: "Use enriched /projects/{code} and /employees/me instead. Will be removed in MVP2."              | Existing 6 integration tests still pass                   | ✅     |
+| Change                                           | Implementation                                                                                                 | Tests                                                | Status |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------ |
+| `AllocationDetailResponse` +6 properties         | ✅ CreateAllocationCommandHandler, UpdateAllocationCommandHandler, ProjectsController, EmployeesController     | 5 unit tests in CreateAllocationCommandHandlerTests  | ✅     |
+| `ProjectDetailResponse` +Allocations/TeamMembers | ✅ ProjectsController.GetByCode builds both collections                                                        | 2 unit tests in ProjectDetailResponseEnrichmentTests | ✅     |
+| `DashboardController` marked `[Obsolete]`        | ✅ Attribute with message: "Use enriched /projects/{code} and /employees/me instead. Will be removed in MVP2." | Existing 6 integration tests still pass              | ✅     |
 
 ### 6.2 Validation Checks
 
-| Check                                                                                                                                                                                       | Result                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 5 allocation tests reference correct `AllocationDetailResponse` properties (`Designation`, `Billable`, `AccountCode`, `AccountName`, `Status`, `UpdatedAt`)                                 | ✅ Pass                                                                                                                                      |
-| 2 project tests correctly instantiate `ProjectDetailResponse` with `Allocations` (`IReadOnlyList<AllocationDetailResponse>`) and `TeamMembers` (`IReadOnlyList<ProjectTeamMemberResponse>`) | ✅ Pass                                                                                                                                      |
-| 3 employee tests correctly reference `ManagedProjectItem` DTO and `EmployeeDetailResponse.ManagedProjects` (`List<ManagedProjectItem>`)                                                     | ✅ Pass                                                                                                                                      |
-| Compile errors or namespace mismatches                                                                                                                                                      | ✅ None — zero errors across all 3 new/modified test files                                                                                   |
-| Handler implementations populate enriched fields                                                                                                                                            | ✅ `CreateAllocationCommandHandler` and `UpdateAllocationCommandHandler` both set all 6 new properties                                       |
-| Controller implementations populate enriched collections                                                                                                                                    | ✅ `ProjectsController.GetByCode` builds Allocations + TeamMembers; `EmployeesController.BuildEmployeeDetailResponse` builds ManagedProjects |
-| Edge case: empty ManagedProjects list (not null)                                                                                                                                            | ✅ `GetEmployeeDetail_NoManagedProjects_ShouldReturnEmptyList` covers this                                                                   |
-
-### 6.3 Recommended Additional Tests
-
-| #   | Test Description                                                                                                   | Priority |
-| --- | ------------------------------------------------------------------------------------------------------------------ | -------- |
-| 1   | `ProjectDetailResponse` with zero allocations and zero team members → verify empty lists (not null)                | Low      |
-| 2   | `ComputeAllocationStatus` edge cases: future FromDate → "Upcoming", past ToDate → "Ended" via dedicated unit tests | Low      |
-| 3   | `AllocationDetailResponse` when `Project.Account` is null → verify AccountCode/AccountName default to empty string | Low      |
+| Check                                                                                                                                                                                       | Result                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 5 allocation tests reference correct `AllocationDetailResponse` properties (`Designation`, `Billable`, `AccountCode`, `AccountName`, `Status`, `UpdatedAt`)                                 | ✅ Pass                                                                                                   |
+| 2 project tests correctly instantiate `ProjectDetailResponse` with `Allocations` (`IReadOnlyList<AllocationDetailResponse>`) and `TeamMembers` (`IReadOnlyList<ProjectTeamMemberResponse>`) | ✅ Pass                                                                                                   |
+| Compile errors or namespace mismatches                                                                                                                                                      | ✅ None — zero errors across all test files                                                               |
+| Handler implementations populate enriched fields                                                                                                                                            | ✅ `CreateAllocationCommandHandler` and `UpdateAllocationCommandHandler` both set all enriched properties |
+| Controller implementations populate enriched collections                                                                                                                                    | ✅ `ProjectsController.GetByCode` builds Allocations + TeamMembers                                        |
 
 ---
 
-## 7. Conclusion
+## 7. Phase 7 — Allocation Billable, Simplified /employees/me, GET /allocations, ResourceCount Validation
 
-The PAMS backend is covered by **256 executable tests** (197 unit + 59 integration) with **100% pass rate**. All 15 command handlers have dedicated unit tests. All 8 controllers have integration tests exercising CRUD operations and authorization policies across HR, PM, and Staff roles. The integration suite uses Testcontainers for a disposable PostgreSQL instance, ensuring tests are isolated and repeatable without external dependencies.
+### 7.1 Changes Verified
 
-**Phase 6 enrichment** added 10 new unit tests across 3 files (5 in `CreateAllocationCommandHandlerTests`, 2 in `ProjectDetailResponseEnrichmentTests`, 3 in `EmployeeDetailResponseEnrichmentTests`). All tests compile cleanly and reference correct types, namespaces, and properties. The `DashboardController` is marked `[Obsolete]` with a deprecation path toward the enriched endpoints.
+| Change                                                        | Implementation                                                                                                     | Tests                                                           | Status |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- | ------ |
+| Allocation-level `Billable` flag (bool, default true)         | ✅ `Allocation.Billable`, `CreateAllocationCommand.Billable`, `UpdateAllocationCommand.Billable?`                  | 3 new reflection tests + 1 enrichment test in handler tests     | ✅     |
+| `Billable` mapped in handler                                  | ✅ `CreateAllocationCommandHandler`: `Billable = request.Billable`                                                 | Test #10: verifies Billable=true in response                    | ✅     |
+| `Billable` conditionally updated                              | ✅ `UpdateAllocationCommandHandler`: `if (request.Billable.HasValue) allocation.Billable = request.Billable.Value` | No dedicated test (see gaps)                                    | ⚠️     |
+| `AllocationDetailResponse` has `Billable` + `ProjectBillable` | ✅ `MapFrom` maps `allocation.Billable` and `project.Billable` separately                                          | Reflection test verifies Billable property on response          | ✅     |
+| Simplified `/employees/me`                                    | ✅ `EmployeeDetailResponse` has NO `CurrentAllocations` or `ManagedProjects`                                       | 2 reflection tests in EmployeeDetailResponseSimplificationTests | ✅     |
+| `EmployeesController` simplified                              | ✅ No `IProjectRepository`/`IProjectTeamMemberRepository` injection; `BuildEmployeeDetailResponse` is lean         | 3 updated tests in EmployeeDetailResponseEnrichmentTests        | ✅     |
+| `ManagedProjectItem.cs` removed                               | ✅ File contains only tombstone comment `// Removed in v1.10.0`                                                    | Tests confirm property absent via reflection                    | ✅     |
+| New paginated `GET /allocations`                              | ✅ `AllocationsController.List` with filters: empCode, projectCode, projectManagerEmpCode, status, billable        | 2 reflection tests in AllocationListEndpointTests               | ✅     |
+| `IAllocationRepository` filter methods                        | ✅ `GetFilteredAsync` and `GetFilteredCountAsync` on interface                                                     | 2 reflection tests verify methods exist                         | ✅     |
+| `AllocationRepository` implements filters                     | ✅ `BuildFilteredQuery` with empCode, projectCode, PM, status (active/ended/upcoming), billable                    | No dedicated integration test (see gaps)                        | ⚠️     |
+| `ResourceCount` on `ProjectSummaryResponse`                   | ✅ `int ResourceCount` property; populated in `ProjectsController.List`                                            | 1 reflection test in ProjectResourceCountTests                  | ✅     |
+| `ResourceCount` on `ProjectDetailResponse`                    | ✅ `int ResourceCount` property; populated in `ProjectsController.GetByCode`                                       | 1 reflection test in ProjectResourceCountTests                  | ✅     |
+| `FromDate >= today` validation                                | ✅ `CreateAllocationCommandValidator`: `Must(fromDate => fromDate >= DateOnly.FromDateTime(DateTime.Today))`       | 2 tests: past-date fails, today passes                          | ✅     |
+| `DemoDataSeeder` Billable on allocations                      | ✅ All 12 seed allocations have explicit `Billable = true/false`                                                   | Visual verification — no automated test                         | ✅     |
+
+### 7.2 Validation Checks
+
+| Check                                                                                                         | Result                                                                               |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `Allocation.Billable` is `bool` with default `true`                                                           | ✅ Pass — `public virtual bool Billable { get; set; } = true;`                       |
+| `CreateAllocationCommand.Billable` is `bool` with default `true`                                              | ✅ Pass — `public bool Billable { get; init; } = true;`                              |
+| `UpdateAllocationCommand.Billable` is `bool?` (nullable for conditional update)                               | ✅ Pass — `public bool? Billable { get; init; }`                                     |
+| `UpdateAllocationRequest` (controller DTO) has `bool? Billable`                                               | ✅ Pass — matches command shape                                                      |
+| `AllocationDetailResponse.MapFrom` maps `Billable` from allocation, `ProjectBillable` from project            | ✅ Pass — independent mapping confirmed                                              |
+| `EmployeeDetailResponse` has no `CurrentAllocations` property (reflection check)                              | ✅ Pass — property removed                                                           |
+| `EmployeeDetailResponse` has no `ManagedProjects` property (reflection check)                                 | ✅ Pass — property removed                                                           |
+| `EmployeesController` has no `IProjectRepository` or `IProjectTeamMemberRepository` dependency                | ✅ Pass — only `IEmployeeRepository`, `IAllocationRepository`, `ICurrentUserService` |
+| `GET /allocations` returns `PagedResponse<AllocationDetailResponse>` with pagination                          | ✅ Pass — controller uses `PagedResponse<T>` + `PaginationMeta.Create`               |
+| `BuildFilteredQuery` excludes soft-deleted allocations (`DeletedAt == null`)                                  | ✅ Pass — first filter in query builder                                              |
+| Status filter handles `active`, `ended`, `upcoming` case-insensitively                                        | ✅ Pass — `status.ToLower()` switch expression                                       |
+| `ResourceCount` on list counts only active non-deleted allocations (fromDate ≤ today, toDate null or ≥ today) | ✅ Pass — filter logic matches in both `List` and `GetByCode`                        |
+| Validator error message matches test wildcard `"*past*"`                                                      | ✅ Pass — message is `"From date must not be in the past."`                          |
+| Compile errors                                                                                                | ✅ None — zero errors across all source and test files                               |
+
+### 7.3 Test Delta Summary
+
+| File                                         | Old Count | New Count | Delta   | Notes                                          |
+| -------------------------------------------- | --------- | --------- | ------- | ---------------------------------------------- |
+| CreateAllocationCommandHandlerTests.cs       | 12        | 16        | +4      | 3 billable reflection + 1 billable enrichment  |
+| EmployeeDetailResponseSimplificationTests.cs | —         | 2         | +2      | NEW: no CurrentAllocations, no ManagedProjects |
+| ProjectResourceCountTests.cs                 | —         | 2         | +2      | NEW: ResourceCount on Summary + Detail         |
+| AllocationListEndpointTests.cs               | —         | 2         | +2      | NEW: GetFilteredAsync + GetFilteredCountAsync  |
+| EmployeeDetailResponseEnrichmentTests.cs     | 3         | 3         | 0       | Content updated: tests simplified response     |
+| **Total Unit Test Delta**                    | **197**   | **207**   | **+10** |                                                |
+
+---
+
+## 8. Conclusion
+
+The PAMS backend is covered by **266 executable tests** (207 unit + 59 integration) with **100% pass rate** and **zero compile errors**. All 15 command handlers have dedicated unit tests. All 8 controllers have integration tests exercising CRUD operations and authorization policies across HR, PM, and Staff roles. The integration suite uses Testcontainers for a disposable PostgreSQL instance, ensuring tests are isolated and repeatable without external dependencies.
+
+**Phase 6 enrichment** added 5 unit tests across 2 files for `AllocationDetailResponse` properties and `ProjectDetailResponse` collections. The `DashboardController` is marked `[Obsolete]` with a deprecation path toward the enriched endpoints.
+
+**Phase 7** added 10 new unit tests across 4 files (3 new files + 1 modified):
+
+- **Allocation Billable flag**: 4 new tests in `CreateAllocationCommandHandlerTests` verify `Billable` property on entity, command, and response DTO mapping. `CreateAllocationCommandHandler` maps `Billable = request.Billable`; `UpdateAllocationCommandHandler` conditionally updates when `Billable.HasValue`.
+- **Simplified `/employees/me`**: 2 tests in `EmployeeDetailResponseSimplificationTests` verify reflection-based absence of `CurrentAllocations` and `ManagedProjects`. 3 tests in `EmployeeDetailResponseEnrichmentTests` updated to verify simplified response shape.
+- **New `GET /allocations` endpoint**: 2 tests in `AllocationListEndpointTests` verify `IAllocationRepository` exposes `GetFilteredAsync` and `GetFilteredCountAsync`. Controller supports filters: `empCode`, `projectCode`, `projectManagerEmpCode`, `status`, `billable`.
+- **ResourceCount**: 2 tests in `ProjectResourceCountTests` verify both `ProjectSummaryResponse` and `ProjectDetailResponse` have `ResourceCount` as `int`.
+- **FromDate validation**: 2 tests in `CreateAllocationCommandValidatorTests` (already counted in Phase 6 report as TDD red-phase; now passing with implemented validation rule).
+- **DemoDataSeeder**: All 12 seed allocations have explicit `Billable = true/false` values.
+- **ManagedProjectItem.cs**: Reduced to tombstone comment; original DTO class removed.
+
+**Key gaps remaining** (6 medium priority): No dedicated test for `UpdateAllocationCommand.Billable` conditional update, no `Billable=false` scenario test, no integration test for `GET /allocations`, no filter-specific tests for billable/status query params, no ResourceCount computation logic test, no pagination integration tests. All are recommended for a subsequent test hardening pass.

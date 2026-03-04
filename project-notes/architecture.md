@@ -7,8 +7,8 @@
 | Field          | Value                                       |
 | -------------- | ------------------------------------------- |
 | Project        | Project Allocation Management System (PAMS) |
-| Version        | 1.5.0                                       |
-| Date           | 2026-03-03                                  |
+| Version        | 1.6.0                                       |
+| Date           | 2026-03-04                                  |
 | Author         | ProductArchitect (GitHub Copilot)           |
 | Status         | Approved for Implementation                 |
 | Pipeline State | Phase 2 – Architecture Complete             |
@@ -82,7 +82,7 @@ Owns all business invariants. No NuGet dependencies (except `System` BCL).
 
 **Contents:**
 
-- `Entities/` – `Account`, `Project`, `Employee`, `Skill`, `EmployeeSkill`, `Allocation`, `SystemConfig`, `AuditLog`, `ProjectTeamMember`
+- `Entities/` – `Account`, `Project`, `Employee`, `Skill`, `EmployeeSkill`, `Allocation` _(includes `Billable` property — resource-level, independent from project billable)_, `SystemConfig`, `AuditLog`, `ProjectTeamMember`
 - `Enums/` – `AccountType`, `EmployeeRole`, `ProjectStatus`, `AllocationStatus` (computed, not stored)
 - `ValueObjects/` – `DateRange` (fromDate + toDate, encapsulates overlap logic), `AllocationPercentage`
 - `DomainServices/`
@@ -127,6 +127,15 @@ On CreateProject:
 
 HR can always override `billable` explicitly at creation time.
 
+**Key Domain Rule – Allocation fromDate Validation:**
+
+```
+On CreateAllocation:
+  if (request.fromDate < TODAY) → return 400 (fromDate must not be a past date)
+```
+
+This rule applies only to creation. Existing allocations with past fromDate are not affected.
+
 ---
 
 ### 4.2 PAMS.Application
@@ -148,7 +157,7 @@ Orchestrates domain objects. Depends on **Domain** only (via interfaces). Contai
   - `Accounts/` – `GetAccountsQuery`, `GetAccountByCodeQuery`
   - `Projects/` – `GetProjectsQuery`, `GetProjectByCodeQuery`
   - `Employees/` – `GetEmployeesQuery` _(unified: search + list + filter via query params; no separate SearchEmployeesQuery)_, `GetEmployeeByCodeQuery`, `GetEmployeeAllocationStatusQuery`
-  - `Allocations/` – `GetAllocationsByEmployeeQuery`, `GetAllocationsByProjectQuery`
+  - `Allocations/` – `GetAllocationsQuery` _(paginated list with filters: empCode, projectCode, projectManagerEmpCode, status, billable)_, `GetAllocationByIdQuery`
   - `ProjectTeamMembers/` – `GetProjectTeamMembersQuery`
   - `Skills/` – `GetSkillsQuery`
   - `SystemConfig/` – `GetSystemConfigQuery`
@@ -333,7 +342,7 @@ AllocationsController.Create(CreateAllocationRequest)
     ▼ MediatR.Send(CreateAllocationCommand)
     │
     ▼ [ValidationBehavior] → FluentValidation rules
-    │   (percentageIsMultipleOfIncrement, fromDate <= toDate, etc.)
+    │   (percentageIsMultipleOfIncrement, fromDate <= toDate, fromDate >= today, etc.)
     │
     ▼ [TransactionBehavior] → BEGIN TRANSACTION
     │
@@ -769,14 +778,16 @@ ASP.NET Core built-in `RateLimiter` (no external dep):
 
 ### Enriched Response Strategy
 
-As of v1.7.0, resource APIs embed related data directly in their responses. Dashboard aggregation endpoints have been removed (v1.8.0):
+As of v1.7.0, resource APIs embed related data directly in their responses. Dashboard aggregation endpoints have been removed (v1.8.0). As of v1.10.0, employee endpoints have been simplified:
 
-| Endpoint                   | Enrichment                                                                           | Purpose                                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `GET /projects/{code}`     | `+allocations[]`, `+teamMembers[]`                                                   | Single call for full project view with resources and team assignments                    |
-| `GET /employees/me`        | `+managedProjects[]`                                                                 | Self-profile includes projects where user is PM or TeamLead                              |
-| `GET /employees/{empCode}` | `+managedProjects[]`                                                                 | Employee detail includes management responsibilities                                     |
-| `AllocationDetailResponse` | `+designation`, `+billable`, `+accountCode`, `+accountName`, `+status`, `+updatedAt` | Allocation responses carry denormalized display data from Employee, Project, and Account |
+| Endpoint                   | Enrichment                                                                                                          | Purpose                                                                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /projects/{code}`     | `+allocations[]`, `+teamMembers[]`, `+resourceCount`                                                                | Single call for full project view with resources, team assignments, and resource count                                                           |
+| `GET /employees/me`        | Profile only (v1.10.0)                                                                                              | Returns employee profile; use `GET /allocations` with filters for allocations/managed projects                                                   |
+| `GET /employees/{empCode}` | Profile only (v1.10.0)                                                                                              | Returns employee profile; use `GET /allocations` with filters for allocation data                                                                |
+| `GET /allocations`         | Paginated, filterable list (v1.10.0)                                                                                | Replaces embedded `currentAllocations[]` and `managedProjects[]`; supports empCode, projectCode, projectManagerEmpCode, status, billable filters |
+| `AllocationDetailResponse` | `+designation`, `+billable` (resource), `+projectBillable`, `+accountCode`, `+accountName`, `+status`, `+updatedAt` | Allocation responses carry denormalized display data from Employee, Project, and Account                                                         |
+| `ProjectSummary/Response`  | `+resourceCount`                                                                                                    | Count of active non-deleted allocations on the project                                                                                           |
 
 This approach follows the **Backend-for-Frontend (BFF) pattern** — the API shapes responses to match what the consumer needs in a single call, reducing round-trips and client-side data joining.
 
@@ -787,6 +798,17 @@ This approach follows the **Backend-for-Frontend (BFF) pattern** — the API sha
 - `GET /api/v1/dashboard/project-view` → removed; use enriched `GET /projects/{code}`
 - `GET /api/v1/dashboard/employee-view` → removed; use `GET /employees` + `GET /employees/me`
 - `CanViewDashboard` authorization policy → removed
+
+### Employee Endpoint Simplification (v1.10.0)
+
+`GET /employees/me` and `GET /employees/{empCode}` now return **profile data only** — no embedded `currentAllocations[]` or `managedProjects[]`. The `ManagedProjectItem` schema has been removed.
+
+Consumers should use the new `GET /allocations` paginated endpoint with appropriate filters:
+
+- **My allocations:** `GET /allocations?empCode=myEmpCode`
+- **Managed project allocations:** `GET /allocations?projectManagerEmpCode=myEmpCode`
+
+This decouples allocation queries from employee profile queries, enabling independent pagination and filtering.
 
 ---
 

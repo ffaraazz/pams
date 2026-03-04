@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PAMS.Application.Commands.Allocations;
 using PAMS.Application.DTOs.Allocations;
+using PAMS.Application.DTOs.Common;
+using PAMS.Application.Interfaces;
 using PAMS.Domain.Enums;
 using PAMS.Domain.Repositories;
 
@@ -22,17 +24,72 @@ public sealed class AllocationsController : ControllerBase
     private readonly IAllocationRepository _allocationRepo;
     private readonly IEmployeeRepository _employeeRepo;
     private readonly IProjectRepository _projectRepo;
+    private readonly ICurrentUserService _currentUser;
 
     public AllocationsController(
         IMediator mediator,
         IAllocationRepository allocationRepo,
         IEmployeeRepository employeeRepo,
-        IProjectRepository projectRepo)
+        IProjectRepository projectRepo,
+        ICurrentUserService currentUser)
     {
         _mediator = mediator;
         _allocationRepo = allocationRepo;
         _employeeRepo = employeeRepo;
         _projectRepo = projectRepo;
+        _currentUser = currentUser;
+    }
+
+    /// <summary>
+    /// List allocations with optional filters.
+    /// </summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(PagedResponse<AllocationDetailResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<PagedResponse<AllocationDetailResponse>>> List(
+        [FromQuery] string? empCode,
+        [FromQuery] string? projectCode,
+        [FromQuery] string? projectManagerEmpCode,
+        [FromQuery] string? status,
+        [FromQuery] bool? billable,
+        [FromQuery] int page = 1,
+        [FromQuery] int limit = 10,
+        CancellationToken ct = default)
+    {
+        // Role scoping
+        if (_currentUser.Role == EmployeeRole.Staff)
+        {
+            // Staff can only see own allocations
+            if (empCode is not null && empCode != _currentUser.EmpCode)
+                return Forbid();
+            empCode = _currentUser.EmpCode;
+        }
+        else if (_currentUser.Role == EmployeeRole.ProjectManager)
+        {
+            // PM can only see allocations on their own projects
+            if (projectManagerEmpCode is not null && projectManagerEmpCode != _currentUser.EmpCode)
+                return Forbid();
+            projectManagerEmpCode = _currentUser.EmpCode;
+        }
+        // HR sees all — no additional filter
+
+        limit = Math.Clamp(limit, 1, 100);
+        page = Math.Max(page, 1);
+
+        var allocations = await _allocationRepo.GetFilteredAsync(
+            empCode, projectCode, projectManagerEmpCode, status, billable, page, limit, ct);
+        var totalRecords = await _allocationRepo.GetFilteredCountAsync(
+            empCode, projectCode, projectManagerEmpCode, status, billable, ct);
+
+        var data = allocations
+            .Select(a => AllocationDetailResponse.MapFrom(a))
+            .ToList();
+
+        return Ok(new PagedResponse<AllocationDetailResponse>
+        {
+            Data = data,
+            Pagination = PaginationMeta.Create(page, limit, totalRecords)
+        });
     }
 
     /// <summary>
@@ -116,7 +173,9 @@ public sealed class AllocationsController : ControllerBase
             AllocationId = allocationId,
             FromDate = request.FromDate,
             ToDate = request.ToDate,
-            Percentage = request.Percentage
+            Percentage = request.Percentage,
+            Billable = request.Billable,
+            ProjectRole = request.ProjectRole
         };
 
         var result = await _mediator.Send(command, ct);
@@ -247,6 +306,8 @@ public sealed record UpdateAllocationRequest
     public required DateOnly FromDate { get; init; }
     public DateOnly? ToDate { get; init; }
     public required int Percentage { get; init; }
+    public bool? Billable { get; init; }
+    public string? ProjectRole { get; init; }
 }
 
 public sealed record StopAllocationRequest

@@ -91,4 +91,64 @@ public sealed class AllocationRepository : IAllocationRepository
         allocation.DeletedAt = DateTime.UtcNow;
         _context.Allocations.Update(allocation);
     }
+
+    public async Task<IReadOnlyList<Allocation>> GetFilteredAsync(
+        string? empCode, string? projectCode, string? projectManagerEmpCode,
+        string? status, bool? billable,
+        int page, int limit, CancellationToken ct = default)
+    {
+        var query = BuildFilteredQuery(empCode, projectCode, projectManagerEmpCode, status, billable);
+        return await query
+            .OrderByDescending(a => a.FromDate)
+            .Skip((page - 1) * limit)
+            .Take(limit)
+            .Include(a => a.Employee)
+            .Include(a => a.Project)
+                .ThenInclude(p => p.Account)
+            .ToListAsync(ct);
+    }
+
+    public async Task<int> GetFilteredCountAsync(
+        string? empCode, string? projectCode, string? projectManagerEmpCode,
+        string? status, bool? billable,
+        CancellationToken ct = default)
+    {
+        var query = BuildFilteredQuery(empCode, projectCode, projectManagerEmpCode, status, billable);
+        return await query.CountAsync(ct);
+    }
+
+    private IQueryable<Allocation> BuildFilteredQuery(
+        string? empCode, string? projectCode, string? projectManagerEmpCode,
+        string? status, bool? billable)
+    {
+        var query = _context.Allocations
+            .Where(a => a.DeletedAt == null);
+
+        if (!string.IsNullOrWhiteSpace(empCode))
+            query = query.Where(a => a.Employee.EmpCode.ToLower() == empCode.ToLower());
+
+        if (!string.IsNullOrWhiteSpace(projectCode))
+            query = query.Where(a => a.Project.ProjectCode.ToLower() == projectCode.ToLower());
+
+        if (!string.IsNullOrWhiteSpace(projectManagerEmpCode))
+            query = query.Where(a => a.Project.ProjectManager != null &&
+                a.Project.ProjectManager.EmpCode.ToLower() == projectManagerEmpCode.ToLower());
+
+        if (billable.HasValue)
+            query = query.Where(a => a.Billable == billable.Value);
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            query = status.ToLower() switch
+            {
+                "active" => query.Where(a => a.FromDate <= today && (a.ToDate == null || a.ToDate >= today)),
+                "ended" => query.Where(a => a.ToDate != null && a.ToDate < today),
+                "upcoming" => query.Where(a => a.FromDate > today),
+                _ => query
+            };
+        }
+
+        return query;
+    }
 }

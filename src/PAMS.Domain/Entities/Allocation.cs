@@ -11,6 +11,7 @@ public class Allocation : IAuditableEntity, ISoftDeletable
     public virtual DateOnly? ToDate { get; set; }
     public virtual int Percentage { get; set; }
     public virtual string? ProjectRole { get; set; }
+    public virtual bool Billable { get; set; } = true;
     public virtual Guid AllocatedById { get; set; }
     public virtual DateTime? DeletedAt { get; set; }
     public virtual DateTime CreatedAt { get; set; }

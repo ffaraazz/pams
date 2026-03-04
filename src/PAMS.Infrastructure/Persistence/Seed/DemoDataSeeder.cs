@@ -92,7 +92,7 @@ public static class DemoDataSeeder
             Email = "james.taylor@pams.local",
             Designation = "DevOps Engineer",
             Role = EmployeeRole.Staff,
-            ReportsToId = null,
+            ReportsToId = emp001.Id,
             IsActive = true,
             CreatedAt = now,
             UpdatedAt = now
@@ -106,7 +106,7 @@ public static class DemoDataSeeder
             Email = "rachel.martinez@pams.local",
             Designation = "Project Manager",
             Role = EmployeeRole.ProjectManager,
-            ReportsToId = null,
+            ReportsToId = emp001.Id,
             IsActive = true,
             CreatedAt = now,
             UpdatedAt = now
@@ -136,7 +136,7 @@ public static class DemoDataSeeder
         {
             (emp001, ["Agile", "Scrum"]),
             (emp002, ["C#", ".NET", "Azure", "Agile"]),
-            (emp003, ["Java", "SQL", "PostgreSQL"]),
+            (emp003, ["C#", ".NET", "Java", "SQL", "PostgreSQL"]),
             (emp004, ["C#", ".NET", "SQL", "Docker"]),
             (emp005, ["C#", ".NET", "React", "TypeScript", "Azure"]),
             (emp006, ["JavaScript", "React", "TypeScript"]),
@@ -242,7 +242,7 @@ public static class DemoDataSeeder
             ProjectManagerId = emp002.Id,
             StartDate = new DateOnly(2025, 6, 1),
             EndDate = new DateOnly(2025, 12, 31),
-            Status = ProjectStatus.Active,
+            Status = ProjectStatus.Completed,
             Billable = true,
             IsActive = true,
             CreatedAt = now,
@@ -317,7 +317,7 @@ public static class DemoDataSeeder
             ProjectManagerId = emp009.Id,
             StartDate = new DateOnly(2026, 1, 1),
             EndDate = new DateOnly(2026, 9, 30),
-            Status = ProjectStatus.Upcoming,
+            Status = ProjectStatus.Active,
             Billable = true,
             IsActive = true,
             CreatedAt = now,
@@ -349,63 +349,63 @@ public static class DemoDataSeeder
             // David Chen: 50% Azure + 50% Teams = Full
             new() { Id = Guid.NewGuid(), EmployeeId = emp004.Id, ProjectId = prjAzureMig.Id,
                 FromDate = new(2025, 6, 1), ToDate = new(2026, 6, 30), Percentage = 50,
-                ProjectRole = "Senior Developer",
+                ProjectRole = "Senior Developer", Billable = true,
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
             new() { Id = Guid.NewGuid(), EmployeeId = emp004.Id, ProjectId = prjTeamsInt.Id,
                 FromDate = new(2025, 6, 1), ToDate = new(2025, 12, 31), Percentage = 50,
-                ProjectRole = "Developer",
+                ProjectRole = "Developer", Billable = true,
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
 
             // Sarah Johnson: 75% Azure + 25% Teams = Full
             new() { Id = Guid.NewGuid(), EmployeeId = emp005.Id, ProjectId = prjAzureMig.Id,
                 FromDate = new(2025, 3, 1), ToDate = new(2026, 6, 30), Percentage = 75,
-                ProjectRole = "Tech Lead",
+                ProjectRole = "Tech Lead", Billable = true,
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
             new() { Id = Guid.NewGuid(), EmployeeId = emp005.Id, ProjectId = prjTeamsInt.Id,
                 FromDate = new(2025, 8, 1), ToDate = new(2025, 12, 31), Percentage = 25,
-                ProjectRole = "Architect",
+                ProjectRole = "Architect", Billable = true,
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
 
             // Mike Wilson: 100% GCP = Full
             new() { Id = Guid.NewGuid(), EmployeeId = emp006.Id, ProjectId = prjGcpApp.Id,
                 FromDate = new(2025, 4, 1), ToDate = new(2026, 3, 31), Percentage = 100,
-                ProjectRole = "Frontend Developer",
+                ProjectRole = "Frontend Developer", Billable = true,
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
             // Emily Davis: 50% AI POC + 25% Fraud Det = Partial
             new() { Id = Guid.NewGuid(), EmployeeId = emp007.Id, ProjectId = prjAiPoc.Id,
                 FromDate = new(2025, 9, 1), ToDate = null, Percentage = 50,
-                ProjectRole = "QA Lead",
+                ProjectRole = "QA Lead", Billable = false,
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
             new() { Id = Guid.NewGuid(), EmployeeId = emp007.Id, ProjectId = prjFraud.Id,
                 FromDate = new(2026, 1, 1), ToDate = new(2026, 9, 30), Percentage = 25,
-                ProjectRole = "QA Engineer",
+                ProjectRole = "QA Engineer", Billable = true,
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
             // James Taylor: 25% Azure + 25% Payment = Partial (50% available)
             new() { Id = Guid.NewGuid(), EmployeeId = emp008.Id, ProjectId = prjAzureMig.Id,
                 FromDate = new(2025, 6, 1), ToDate = new(2026, 6, 30), Percentage = 25,
-                ProjectRole = "DevOps Engineer",
+                ProjectRole = "DevOps Engineer", Billable = true,
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
             new() { Id = Guid.NewGuid(), EmployeeId = emp008.Id, ProjectId = prjPaySys.Id,
                 FromDate = new(2025, 8, 1), ToDate = new(2026, 12, 31), Percentage = 25,
-                ProjectRole = "DevOps Engineer",
+                ProjectRole = "DevOps Engineer", Billable = true,
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
             // Bob Staff: 100% MVP (ended) + 50% Payment System (current)
             new() { Id = Guid.NewGuid(), EmployeeId = emp003.Id, ProjectId = prjMvp.Id,
                 FromDate = new(2025, 4, 1), ToDate = new(2025, 10, 31), Percentage = 100,
-                ProjectRole = "Backend Developer",
+                ProjectRole = "Backend Developer", Billable = true,
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
             new() { Id = Guid.NewGuid(), EmployeeId = emp003.Id, ProjectId = prjPaySys.Id,
                 FromDate = new(2026, 1, 15), ToDate = new(2026, 12, 31), Percentage = 50,
-                ProjectRole = "Developer",
+                ProjectRole = "Developer", Billable = true,
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
             // Tom Brown (inactive): E-Commerce (soft-deleted)
             new() { Id = Guid.NewGuid(), EmployeeId = emp010.Id, ProjectId = prjEcom.Id,
                 FromDate = new(2024, 6, 1), ToDate = new(2025, 3, 31), Percentage = 100,
-                ProjectRole = "Full Stack Developer",
+                ProjectRole = "Full Stack Developer", Billable = false,
                 AllocatedById = emp002.Id, DeletedAt = now, CreatedAt = now, UpdatedAt = now },
         };
 

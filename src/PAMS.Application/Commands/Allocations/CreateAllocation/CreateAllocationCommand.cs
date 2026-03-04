@@ -14,4 +14,5 @@ public sealed record CreateAllocationCommand : IRequest<AllocationDetailResponse
     public required DateOnly FromDate { get; init; }
     public DateOnly? ToDate { get; init; }
     public string? ProjectRole { get; init; }
+    public bool Billable { get; init; } = true;
 }

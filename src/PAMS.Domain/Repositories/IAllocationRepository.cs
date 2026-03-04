@@ -15,4 +15,12 @@ public interface IAllocationRepository
     Task AddAsync(Allocation allocation, CancellationToken ct = default);
     void Update(Allocation allocation);
     void SoftDelete(Allocation allocation);
+    Task<IReadOnlyList<Allocation>> GetFilteredAsync(
+        string? empCode, string? projectCode, string? projectManagerEmpCode,
+        string? status, bool? billable,
+        int page, int limit, CancellationToken ct = default);
+    Task<int> GetFilteredCountAsync(
+        string? empCode, string? projectCode, string? projectManagerEmpCode,
+        string? status, bool? billable,
+        CancellationToken ct = default);
 }

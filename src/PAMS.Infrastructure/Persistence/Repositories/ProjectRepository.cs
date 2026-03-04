@@ -48,6 +48,7 @@ public sealed class ProjectRepository : IProjectRepository
             .Take(limit)
             .Include(p => p.Account)
             .Include(p => p.ProjectManager)
+            .Include(p => p.Allocations)
             .ToListAsync(ct);
     }
 

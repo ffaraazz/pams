@@ -4,30 +4,15 @@ using PAMS.Domain.Repositories;
 
 namespace PAMS.Application.Validators;
 
-/// <summary>
-/// Validates CreateAllocationCommand per FR-010 acceptance criteria.
-/// Checks percentage min/max/increment, date constraints, required fields.
-/// </summary>
-public sealed class CreateAllocationCommandValidator : AbstractValidator<CreateAllocationCommand>
+public sealed class UpdateAllocationCommandValidator : AbstractValidator<UpdateAllocationCommand>
 {
-    private readonly ISystemConfigRepository _configRepo;
-
-    public CreateAllocationCommandValidator(ISystemConfigRepository configRepo)
+    public UpdateAllocationCommandValidator(ISystemConfigRepository configRepo)
     {
-        _configRepo = configRepo;
-
-        RuleFor(c => c.ProjectCode)
-            .NotEmpty().WithMessage("Project code is required.");
-
-        RuleFor(c => c.EmpCode)
-            .NotEmpty().WithMessage("Employee code is required.");
+        RuleFor(c => c.AllocationId)
+            .NotEmpty().WithMessage("Allocation ID is required.");
 
         RuleFor(c => c.FromDate)
             .NotEqual(default(DateOnly)).WithMessage("From date is required.");
-
-        RuleFor(c => c.FromDate)
-            .Must(fromDate => fromDate >= DateOnly.FromDateTime(DateTime.Today))
-            .WithMessage("From date must not be in the past.");
 
         RuleFor(c => c.ToDate)
             .Must((cmd, toDate) => toDate is null || toDate >= cmd.FromDate)
@@ -36,7 +21,7 @@ public sealed class CreateAllocationCommandValidator : AbstractValidator<CreateA
         RuleFor(c => c.Percentage)
             .MustAsync(async (pct, ct) =>
             {
-                var config = await _configRepo.GetAsync(ct);
+                var config = await configRepo.GetAsync(ct);
                 return pct >= config.MinAllocationPercentage;
             })
             .WithMessage("Percentage must be at least the configured minimum.")
@@ -49,7 +34,7 @@ public sealed class CreateAllocationCommandValidator : AbstractValidator<CreateA
                 RuleFor(c => c.Percentage)
                     .MustAsync(async (pct, ct) =>
                     {
-                        var config = await _configRepo.GetAsync(ct);
+                        var config = await configRepo.GetAsync(ct);
                         return pct % config.AllocationIncrement == 0;
                     })
                     .WithMessage("Percentage must be a multiple of the configured increment.");
