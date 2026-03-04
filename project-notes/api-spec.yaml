@@ -1363,16 +1363,18 @@ components:
       type: string
       enum: [Upcoming, Active, Completed]
       description: |
-        Upcoming = project created but not yet started.
-        Active = work in progress.
-        Completed = all work finished.
+        Lifecycle stage of a project. Manually managed by HR or PM — not automatically derived from dates.
+        Upcoming = project created but work has not started.
+        Active = work is in progress.
+        Completed = all work finished, project closed.
 
     AllocationStatus:
       type: string
       enum: [Bench, Partial, Full]
       description: |
-        Bench = 0% allocated in the window.
-        Partial = >0% and <100% allocated.
+        Computed allocation band for an employee in a date window. Not stored — derived at runtime.
+        Bench = 0% allocated (fully available).
+        Partial = 1–99% allocated (partially available).
         Full = 100% allocated on at least one day in the window.
 
     # ── Problem Details ────────────────────────────────────────────────────
@@ -1486,6 +1488,7 @@ components:
           $ref: "#/components/schemas/AccountType"
         isActive:
           type: boolean
+          description: "Whether the account is active. Inactive accounts cannot have new projects created under them."
         totalActiveProjects:
           type: integer
           description: "Computed: count of active projects under this account."
@@ -1578,6 +1581,7 @@ components:
           description: Whether the project is billable. Defaults to true for client accounts.
         isActive:
           type: boolean
+          description: "Soft-delete/archive flag. False means deactivated. Independent of status — a Completed project can still be active (visible)."
         startDate:
           type: string
           format: date
@@ -1668,7 +1672,7 @@ components:
           description: Whether the project is billable.
         isActive:
           type: boolean
-          description: Set to false to deactivate the project.
+          description: "Set to false to deactivate/archive the project. Independent of status. Does not affect existing allocations."
 
     PagedResponse_ProjectSummary:
       type: object
@@ -1698,6 +1702,7 @@ components:
           $ref: "#/components/schemas/EmployeeRole"
         isActive:
           type: boolean
+          description: "Whether the employee account is active. Inactive employees cannot be allocated to projects."
         availabilityPercentage:
           type: integer
           minimum: 0
@@ -1868,6 +1873,7 @@ components:
           type: string
         isActive:
           type: boolean
+          description: "Whether the skill is active in the master list. Inactive skills are hidden from selection but retained on existing employee profiles."
 
     CreateSkillRequest:
       type: object
@@ -1949,7 +1955,7 @@ components:
         status:
           type: string
           enum: [Active, Upcoming, Ended]
-          description: Computed allocation status based on current date and allocation dates
+          description: "Computed allocation timeline status — not stored. Active: fromDate ≤ today and (toDate is null or toDate ≥ today). Upcoming: fromDate > today. Ended: toDate < today."
         createdAt:
           type: string
           format: date-time

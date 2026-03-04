@@ -245,7 +245,10 @@ public sealed record UpdateProjectRequest
     public string? ProjectManagerEmpCode { get; init; }
     public required DateOnly StartDate { get; init; }
     public DateOnly? EndDate { get; init; }
+    /// <summary>Lifecycle stage of the project (Upcoming, Active, Completed).</summary>
     public required ProjectStatus Status { get; init; }
+    /// <summary>Whether the project is billable.</summary>
     public required bool Billable { get; init; }
+    /// <summary>Set to false to deactivate/archive the project. Does not affect allocations.</summary>
     public bool? IsActive { get; init; }
 }

@@ -8,6 +8,7 @@ public sealed record AccountSummaryResponse
     public string AccountCode { get; init; } = string.Empty;
     public string AccountName { get; init; } = string.Empty;
     public AccountType AccountType { get; init; }
+    /// <summary>Whether the account is active. Inactive accounts cannot have new projects created under them.</summary>
     public bool IsActive { get; init; }
     public int TotalActiveProjects { get; init; }
     public int TotalInactiveProjects { get; init; }
@@ -21,6 +22,7 @@ public sealed record AccountDetailResponse
     public string AccountCode { get; init; } = string.Empty;
     public string AccountName { get; init; } = string.Empty;
     public AccountType AccountType { get; init; }
+    /// <summary>Whether the account is active. Inactive accounts cannot have new projects created under them.</summary>
     public bool IsActive { get; init; }
     public int TotalActiveProjects { get; init; }
     public int TotalInactiveProjects { get; init; }

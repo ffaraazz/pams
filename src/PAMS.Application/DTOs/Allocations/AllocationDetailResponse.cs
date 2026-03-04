@@ -23,6 +23,7 @@ public sealed record AllocationDetailResponse
     public bool ProjectBillable { get; init; }
     public string AccountCode { get; init; } = string.Empty;
     public string AccountName { get; init; } = string.Empty;
+    /// <summary>Computed allocation timeline status: Active (ongoing), Upcoming (starts in future), or Ended (toDate is past). Not stored — derived from fromDate/toDate vs today.</summary>
     public string Status { get; init; } = string.Empty;
     public DateTime UpdatedAt { get; init; }
 

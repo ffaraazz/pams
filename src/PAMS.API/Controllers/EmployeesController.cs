@@ -288,5 +288,6 @@ public sealed record UpdateEmployeeRequest
     public required EmployeeRole Role { get; init; }
     public string? ReportsToEmpCode { get; init; }
     public List<Guid>? SkillIds { get; init; }
+    /// <summary>Set to false to deactivate the employee. Active allocations are NOT automatically ended.</summary>
     public bool? IsActive { get; init; }
 }

@@ -15,8 +15,10 @@ public sealed record ProjectSummaryResponse
     public Guid? ProjectManagerId { get; init; }
     public string? ProjectManagerEmpCode { get; init; }
     public string? ProjectManagerName { get; init; }
+    /// <summary>Lifecycle stage of the project (Upcoming → Active → Completed). This is manually managed and independent of isActive.</summary>
     public ProjectStatus Status { get; init; }
     public bool Billable { get; init; }
+    /// <summary>Soft-delete/archive flag. False means the project is deactivated or archived. Independent of Status — a Completed project can still be active (visible), and an Active project can be deactivated.</summary>
     public bool IsActive { get; init; }
     public DateOnly StartDate { get; init; }
     public DateOnly? EndDate { get; init; }
@@ -34,8 +36,10 @@ public sealed record ProjectDetailResponse
     public Guid? ProjectManagerId { get; init; }
     public string? ProjectManagerEmpCode { get; init; }
     public string? ProjectManagerName { get; init; }
+    /// <summary>Lifecycle stage of the project (Upcoming → Active → Completed). This is manually managed and independent of isActive.</summary>
     public ProjectStatus Status { get; init; }
     public bool Billable { get; init; }
+    /// <summary>Soft-delete/archive flag. False means the project is deactivated or archived. Independent of Status — a Completed project can still be active (visible), and an Active project can be deactivated.</summary>
     public bool IsActive { get; init; }
     public DateOnly StartDate { get; init; }
     public DateOnly? EndDate { get; init; }

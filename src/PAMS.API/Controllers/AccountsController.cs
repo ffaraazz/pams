@@ -182,5 +182,6 @@ public sealed record UpdateAccountRequest
 {
     public required string AccountName { get; init; }
     public required AccountType AccountType { get; init; }
+    /// <summary>Set to false to deactivate. Server returns 422 if account has active projects.</summary>
     public bool? IsActive { get; init; }
 }
