@@ -1,5 +1,7 @@
 {
   "realm": "pams",
+  "displayName": "NexFlow",
+  "displayNameHtml": "NexFlow",
   "enabled": true,
   "loginTheme": "nexflow",
   "sslRequired": "none",
