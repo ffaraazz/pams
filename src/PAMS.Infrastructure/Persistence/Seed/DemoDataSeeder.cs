@@ -344,9 +344,35 @@ public static class DemoDataSeeder
         await context.SaveChangesAsync();
 
         // ── Allocations ───────────────────────────────────────────────
+        // Designed to cover: Active, Ended, Upcoming, Soft-deleted,
+        // Full/Partial/Bench, PM self-allocation, billable/non-billable, open-ended
         var allocations = new Allocation[]
         {
-            // David Chen: 50% Azure + 50% Teams = Full
+            // ── Alice Morgan (EMP-002, PM) — allocated to her own projects ──
+            // 25% Azure Migration (active) — PM oversight
+            new() { Id = Guid.NewGuid(), EmployeeId = emp002.Id, ProjectId = prjAzureMig.Id,
+                FromDate = new(2025, 3, 1), ToDate = new(2026, 6, 30), Percentage = 25,
+                ProjectRole = "Project Manager", Billable = true,
+                AllocatedById = emp001.Id, CreatedAt = now, UpdatedAt = now },
+            // 25% MVP (ended) — PM oversight on completed project
+            new() { Id = Guid.NewGuid(), EmployeeId = emp002.Id, ProjectId = prjMvp.Id,
+                FromDate = new(2025, 4, 1), ToDate = new(2025, 10, 31), Percentage = 25,
+                ProjectRole = "Project Manager", Billable = true,
+                AllocatedById = emp001.Id, CreatedAt = now, UpdatedAt = now },
+
+            // ── Rachel Martinez (EMP-009, PM) — allocated to her own projects ──
+            // 25% GCP App Modernization (active, ends Mar 2026)
+            new() { Id = Guid.NewGuid(), EmployeeId = emp009.Id, ProjectId = prjGcpApp.Id,
+                FromDate = new(2025, 3, 1), ToDate = new(2026, 3, 31), Percentage = 25,
+                ProjectRole = "Project Manager", Billable = true,
+                AllocatedById = emp001.Id, CreatedAt = now, UpdatedAt = now },
+            // 25% Payment System (active)
+            new() { Id = Guid.NewGuid(), EmployeeId = emp009.Id, ProjectId = prjPaySys.Id,
+                FromDate = new(2025, 7, 1), ToDate = new(2026, 12, 31), Percentage = 25,
+                ProjectRole = "Project Manager", Billable = true,
+                AllocatedById = emp001.Id, CreatedAt = now, UpdatedAt = now },
+
+            // ── David Chen (EMP-004, Staff) — 50% Azure (active) + 50% Teams (ended) ──
             new() { Id = Guid.NewGuid(), EmployeeId = emp004.Id, ProjectId = prjAzureMig.Id,
                 FromDate = new(2025, 6, 1), ToDate = new(2026, 6, 30), Percentage = 50,
                 ProjectRole = "Senior Developer", Billable = true,
@@ -356,7 +382,7 @@ public static class DemoDataSeeder
                 ProjectRole = "Developer", Billable = true,
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
 
-            // Sarah Johnson: 75% Azure + 25% Teams = Full
+            // ── Sarah Johnson (EMP-005, Staff) — 75% Azure (active) + 25% Teams (ended) ──
             new() { Id = Guid.NewGuid(), EmployeeId = emp005.Id, ProjectId = prjAzureMig.Id,
                 FromDate = new(2025, 3, 1), ToDate = new(2026, 6, 30), Percentage = 75,
                 ProjectRole = "Tech Lead", Billable = true,
@@ -366,13 +392,18 @@ public static class DemoDataSeeder
                 ProjectRole = "Architect", Billable = true,
                 AllocatedById = emp002.Id, CreatedAt = now, UpdatedAt = now },
 
-            // Mike Wilson: 100% GCP = Full
+            // ── Mike Wilson (EMP-006, Staff) — 100% GCP (active) + 50% Fraud (upcoming) ──
             new() { Id = Guid.NewGuid(), EmployeeId = emp006.Id, ProjectId = prjGcpApp.Id,
                 FromDate = new(2025, 4, 1), ToDate = new(2026, 3, 31), Percentage = 100,
                 ProjectRole = "Frontend Developer", Billable = true,
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
+            // Upcoming: starts after GCP ends — demonstrates future allocation
+            new() { Id = Guid.NewGuid(), EmployeeId = emp006.Id, ProjectId = prjFraud.Id,
+                FromDate = new(2026, 4, 1), ToDate = new(2026, 9, 30), Percentage = 50,
+                ProjectRole = "Frontend Developer", Billable = true,
+                AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
-            // Emily Davis: 50% AI POC + 25% Fraud Det = Partial
+            // ── Emily Davis (EMP-007, Staff) — 50% AI POC (active, open-ended, non-billable) + 25% Fraud (active) ──
             new() { Id = Guid.NewGuid(), EmployeeId = emp007.Id, ProjectId = prjAiPoc.Id,
                 FromDate = new(2025, 9, 1), ToDate = null, Percentage = 50,
                 ProjectRole = "QA Lead", Billable = false,
@@ -382,7 +413,7 @@ public static class DemoDataSeeder
                 ProjectRole = "QA Engineer", Billable = true,
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
-            // James Taylor: 25% Azure + 25% Payment = Partial (50% available)
+            // ── James Taylor (EMP-008, Staff) — 25% Azure (active) + 25% Payment (active) = 50% available ──
             new() { Id = Guid.NewGuid(), EmployeeId = emp008.Id, ProjectId = prjAzureMig.Id,
                 FromDate = new(2025, 6, 1), ToDate = new(2026, 6, 30), Percentage = 25,
                 ProjectRole = "DevOps Engineer", Billable = true,
@@ -392,7 +423,7 @@ public static class DemoDataSeeder
                 ProjectRole = "DevOps Engineer", Billable = true,
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
-            // Bob Staff: 100% MVP (ended) + 50% Payment System (current)
+            // ── Bob Reynolds (EMP-003, Staff) — 100% MVP (ended) + 50% Payment (active) ──
             new() { Id = Guid.NewGuid(), EmployeeId = emp003.Id, ProjectId = prjMvp.Id,
                 FromDate = new(2025, 4, 1), ToDate = new(2025, 10, 31), Percentage = 100,
                 ProjectRole = "Backend Developer", Billable = true,
@@ -402,7 +433,7 @@ public static class DemoDataSeeder
                 ProjectRole = "Developer", Billable = true,
                 AllocatedById = emp009.Id, CreatedAt = now, UpdatedAt = now },
 
-            // Tom Brown (inactive): E-Commerce (soft-deleted)
+            // ── Tom Brown (EMP-010, inactive) — E-Commerce (soft-deleted) ──
             new() { Id = Guid.NewGuid(), EmployeeId = emp010.Id, ProjectId = prjEcom.Id,
                 FromDate = new(2024, 6, 1), ToDate = new(2025, 3, 31), Percentage = 100,
                 ProjectRole = "Full Stack Developer", Billable = false,
@@ -415,14 +446,20 @@ public static class DemoDataSeeder
         // ── Project team members ──────────────────────────────────────
         var teamMembers = new ProjectTeamMember[]
         {
-            // Azure Migration: Sarah leads David and James
+            // Azure Migration: Sarah (Tech Lead) leads David and James
             new() { Id = Guid.NewGuid(), ProjectId = prjAzureMig.Id,
                 TeamLeadId = emp005.Id, ReporteeId = emp004.Id, CreatedAt = now },
             new() { Id = Guid.NewGuid(), ProjectId = prjAzureMig.Id,
                 TeamLeadId = emp005.Id, ReporteeId = emp008.Id, CreatedAt = now },
-            // Teams Integration: Sarah leads David
+            // Teams Integration: Sarah leads David (ended project)
             new() { Id = Guid.NewGuid(), ProjectId = prjTeamsInt.Id,
                 TeamLeadId = emp005.Id, ReporteeId = emp004.Id, CreatedAt = now },
+            // Payment System: Bob reports to James (DevOps)
+            new() { Id = Guid.NewGuid(), ProjectId = prjPaySys.Id,
+                TeamLeadId = emp008.Id, ReporteeId = emp003.Id, CreatedAt = now },
+            // Fraud Detection: Emily (QA) reports to Mike when he joins
+            new() { Id = Guid.NewGuid(), ProjectId = prjFraud.Id,
+                TeamLeadId = emp006.Id, ReporteeId = emp007.Id, CreatedAt = now },
         };
 
         context.ProjectTeamMembers.AddRange(teamMembers);
