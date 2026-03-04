@@ -292,3 +292,14 @@
   - `DbRoleAuthorizationHandler.cs` (NEW) — `AuthorizationHandler` checking `ICurrentUserService.Role` from DB
   - `ICurrentUserService.cs` — Updated XML doc comment
   - Zero compile errors. ICurrentUserService interface unchanged — all consumers unaffected.
+
+#### Dispatch #29: UIDeveloper → `keycloak/themes/nexflow/login/**`
+
+- **Task:** Complete login page revamp — left-aligned split layout, dual logos (Nexturn company + NexFlow app), Stitch design tokens (#5048e5 primary, #121121 bg), favicon fix
+- **Status:** ✅ COMPLETED (2026-03-05T10:00:00Z)
+- **Results:**
+  - `nexflow.css` — Full rewrite: split layout (480px left panel), gradient overlay (dark→transparent L→R), bg image visible on right, new color scheme from Stitch tokens
+  - `login.ftl` — Full rewrite: dual logos (Nexturn company logo + NexFlow app icon SVG + "NexFlow" text + "Manager Allocation Console" tagline), transparent card, left-aligned
+  - `login-reset-password.ftl` — Full rewrite: same brand section and layout as login
+  - `favicon.svg` — Updated: solid #5048e5 fill, 44x44 viewBox, matching app icon
+  - Temp files cleaned up: stitch-screen.json, stitch-design.html, bg.jpg

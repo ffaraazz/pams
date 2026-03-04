@@ -1,6 +1,7 @@
 {
   "realm": "pams",
   "enabled": true,
+  "loginTheme": "nexflow",
   "sslRequired": "none",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,

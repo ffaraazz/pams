@@ -1,0 +1,626 @@
+﻿/* NexFlow Login Theme - Split Layout */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+:root {
+  --nf-bg: #121121;
+  --nf-surface: #1a1a2e;
+  --nf-surface-2: #232340;
+  --nf-border: #2d2d4a;
+  --nf-primary: #5048e5;
+  --nf-primary-hover: #4338ca;
+  --nf-primary-light: rgba(80, 72, 229, 0.15);
+  --nf-accent: #818cf8;
+  --nf-success: #22c55e;
+  --nf-error: #f87171;
+  --nf-error-bg: rgba(248, 113, 113, 0.08);
+  --nf-warning: #fbbf24;
+  --nf-text: #f1f5f9;
+  --nf-text-muted: #94a3b8;
+  --nf-text-subtle: #64748b;
+  --nf-radius: 12px;
+  --nf-radius-sm: 8px;
+  --nf-radius-lg: 16px;
+  --nf-font: "Inter", system-ui, sans-serif;
+  --nf-transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --nf-panel-width: 480px;
+}
+
+/* Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html {
+  height: 100%;
+}
+
+body {
+  font-family: var(--nf-font);
+  background-color: var(--nf-bg);
+  color: var(--nf-text);
+  height: 100vh;
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  overflow: hidden;
+  line-height: 1.5;
+}
+
+/* Hide default Keycloak header */
+#kc-header,
+#kc-header-wrapper {
+  display: none;
+}
+.login-pf body,
+.login-pf-page {
+  background-color: var(--nf-bg) !important;
+}
+
+/* ===== SPLIT LAYOUT ===== */
+
+/* Background image on the right */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: url("https://nexturn.com/wp-content/uploads/2025/04/home-banner-scaled.jpg?x35177")
+    center / cover no-repeat;
+  z-index: 0;
+}
+
+/* Gradient overlay: dark on left, fading to semi-transparent on right */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    var(--nf-bg) 0%,
+    var(--nf-bg) 30%,
+    rgba(18, 17, 33, 0.85) 45%,
+    rgba(18, 17, 33, 0.4) 70%,
+    rgba(18, 17, 33, 0.2) 100%
+  );
+  z-index: 0;
+}
+
+/* Main container - left-aligned, NO scroll */
+#kc-container,
+.kc-login-container {
+  position: relative;
+  z-index: 1;
+  width: var(--nf-panel-width);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 3rem;
+  overflow: hidden;
+}
+
+/* Content wrapper centers the form vertically */
+.nf-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ===== BRAND SECTION ===== */
+.nf-brand {
+  margin-bottom: 1.5rem;
+}
+
+/* Company logo (Nexturn) — fixed top-right of screen */
+.nf-company-logo {
+  position: fixed;
+  top: 1.5rem;
+  right: 2rem;
+  width: 120px;
+  height: auto;
+  opacity: 0.9;
+  z-index: 10;
+}
+
+/* App logo row */
+.nf-app-logo-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.nf-app-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.nf-app-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.nf-app-name {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--nf-text);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.nf-tagline {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--nf-text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 0.15rem;
+}
+
+/* ===== CARD (no visible card box - blends with dark panel) ===== */
+.nf-card {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Card Header */
+.nf-card-header {
+  margin-bottom: 1.5rem;
+}
+
+.nf-card-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--nf-text);
+  letter-spacing: -0.02em;
+  margin-bottom: 0.3rem;
+}
+
+.nf-card-header p {
+  font-size: 0.9rem;
+  color: var(--nf-text-muted);
+}
+
+/* ===== ALERTS ===== */
+.nf-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--nf-radius-sm);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin-bottom: 1.25rem;
+  border: 1px solid transparent;
+}
+.nf-alert-error {
+  background: var(--nf-error-bg);
+  border-color: rgba(248, 113, 113, 0.25);
+  color: var(--nf-error);
+}
+.nf-alert-warning {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.25);
+  color: var(--nf-warning);
+}
+.nf-alert-success {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.25);
+  color: var(--nf-success);
+}
+.nf-alert-info {
+  background: var(--nf-primary-light);
+  border-color: rgba(80, 72, 229, 0.25);
+  color: var(--nf-accent);
+}
+.nf-alert-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+
+/* ===== FORM ELEMENTS ===== */
+.nf-form-group {
+  margin-bottom: 1rem;
+}
+
+.nf-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--nf-text-muted);
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.01em;
+}
+
+.nf-input-wrap {
+  position: relative;
+}
+
+.nf-input {
+  width: 100%;
+  background: var(--nf-surface-2);
+  border: 1px solid var(--nf-border);
+  border-radius: var(--nf-radius-sm);
+  color: var(--nf-text);
+  font-family: var(--nf-font);
+  font-size: 0.9375rem;
+  padding: 0.65rem 1rem;
+  outline: none;
+  transition:
+    border-color var(--nf-transition),
+    box-shadow var(--nf-transition),
+    background var(--nf-transition);
+}
+
+.nf-input::placeholder {
+  color: var(--nf-text-subtle);
+}
+.nf-input:hover {
+  border-color: #4b5563;
+  background: #2a2a4a;
+}
+.nf-input:focus {
+  border-color: var(--nf-primary);
+  box-shadow: 0 0 0 3px rgba(80, 72, 229, 0.25);
+  background: #2a2a4a;
+}
+.nf-input.nf-input-error {
+  border-color: var(--nf-error);
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.15);
+}
+.nf-input-wrap .nf-input-icon-right {
+  padding-right: 2.75rem;
+}
+
+/* Password toggle */
+.nf-input-toggle {
+  position: absolute;
+  right: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--nf-text-subtle);
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  transition: color var(--nf-transition);
+  border-radius: 4px;
+}
+.nf-input-toggle:hover {
+  color: var(--nf-text-muted);
+}
+.nf-input-toggle:focus-visible {
+  outline: 2px solid var(--nf-primary);
+  outline-offset: 1px;
+}
+.nf-input-toggle svg {
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
+/* Checkbox */
+.nf-check-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+.nf-check {
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid var(--nf-border);
+  border-radius: 4px;
+  background: var(--nf-surface-2);
+  cursor: pointer;
+  accent-color: var(--nf-primary);
+  transition: all var(--nf-transition);
+}
+.nf-check:focus-visible {
+  outline: 2px solid var(--nf-primary);
+  outline-offset: 2px;
+}
+.nf-check-label {
+  font-size: 0.85rem;
+  color: var(--nf-text-muted);
+}
+
+/* Row helper */
+.nf-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Links */
+.nf-link {
+  font-size: 0.85rem;
+  color: var(--nf-accent);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color var(--nf-transition);
+}
+.nf-link:hover {
+  color: #c7d2fe;
+  text-decoration: underline;
+}
+
+/* ===== PRIMARY BUTTON ===== */
+.nf-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  background: var(--nf-primary);
+  color: #fff;
+  font-family: var(--nf-font);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--nf-radius-sm);
+  cursor: pointer;
+  outline: none;
+  letter-spacing: 0.01em;
+  transition:
+    background var(--nf-transition),
+    box-shadow var(--nf-transition),
+    transform var(--nf-transition);
+  position: relative;
+  overflow: hidden;
+}
+.nf-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    transparent 100%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+}
+.nf-btn:hover:not(:disabled) {
+  background: var(--nf-primary-hover);
+  box-shadow: 0 8px 24px rgba(80, 72, 229, 0.4);
+  transform: translateY(-1px);
+}
+.nf-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+.nf-btn:focus-visible {
+  outline: 2px solid var(--nf-accent);
+  outline-offset: 2px;
+}
+.nf-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Spinner */
+.nf-btn-spinner {
+  display: none;
+  width: 17px;
+  height: 17px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: nf-spin 0.7s linear infinite;
+}
+.nf-btn.nf-loading .nf-btn-spinner {
+  display: block;
+}
+.nf-btn.nf-loading .nf-btn-text {
+  opacity: 0.7;
+}
+@keyframes nf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== FOOTER ===== */
+.nf-footer {
+  flex-shrink: 0;
+  padding-top: 1rem;
+  font-size: 0.78rem;
+  color: var(--nf-text-subtle);
+}
+
+/* Field error */
+.nf-field-error {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--nf-error);
+  margin-top: 0.25rem;
+}
+
+/* Divider */
+.nf-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+  color: var(--nf-text-subtle);
+  font-size: 0.78rem;
+}
+.nf-divider::before,
+.nf-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--nf-border);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--nf-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--nf-border);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--nf-text-subtle);
+}
+
+/* Selection */
+::selection {
+  background: rgba(80, 72, 229, 0.35);
+  color: var(--nf-text);
+}
+
+/* Entrance animation */
+@keyframes nf-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nf-brand {
+  animation: nf-fade-in 0.5s ease-out;
+}
+.nf-card {
+  animation: nf-fade-in 0.5s ease-out 0.1s both;
+}
+.nf-footer {
+  animation: nf-fade-in 0.5s ease-out 0.2s both;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  body::after {
+    background: rgba(18, 17, 33, 0.92);
+  }
+  #kc-container,
+  .kc-login-container {
+    width: 100%;
+    height: 100vh;
+    padding: 1.5rem 1.5rem;
+  }
+  .nf-company-logo {
+    width: 100px;
+    top: 1rem;
+    right: 1.25rem;
+  }
+  .nf-app-name {
+    font-size: 1.4rem;
+  }
+}
+
+@media (max-width: 480px) {
+  #kc-container,
+  .kc-login-container {
+    padding: 1.25rem 1.25rem;
+  }
+  .nf-company-logo {
+    width: 80px;
+    top: 0.75rem;
+    right: 1rem;
+  }
+  .nf-app-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .nf-app-name {
+    font-size: 1.25rem;
+  }
+  .nf-brand {
+    margin-bottom: 1rem;
+  }
+  .nf-card-header {
+    margin-bottom: 0.75rem;
+  }
+  .nf-card-header h1 {
+    font-size: 1.25rem;
+  }
+  .nf-form-group {
+    margin-bottom: 0.75rem;
+  }
+  .nf-btn {
+    padding: 0.65rem 1rem;
+  }
+}
+
+@media (max-width: 360px) {
+  #kc-container,
+  .kc-login-container {
+    padding: 1rem;
+  }
+}
+
+/* Short viewports */
+@media (max-height: 680px) {
+  #kc-container,
+  .kc-login-container {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+  .nf-brand {
+    margin-bottom: 1rem;
+  }
+  .nf-company-logo {
+    top: 0.75rem;
+  }
+  .nf-app-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .nf-app-name {
+    font-size: 1.4rem;
+  }
+  .nf-tagline {
+    font-size: 0.7rem;
+  }
+  .nf-card-header {
+    margin-bottom: 0.75rem;
+  }
+  .nf-card-header h1 {
+    font-size: 1.25rem;
+  }
+  .nf-form-group {
+    margin-bottom: 0.75rem;
+  }
+  .nf-input {
+    padding: 0.55rem 0.85rem;
+    font-size: 0.875rem;
+  }
+  .nf-btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.875rem;
+  }
+  .nf-footer {
+    padding-top: 0.5rem;
+  }
+  .nf-row {
+    margin-bottom: 1rem;
+  }
+}
