@@ -10,7 +10,10 @@ public interface IAccountRepository
     Task<bool> CodeExistsAsync(string accountCode, CancellationToken ct = default);
     Task<IReadOnlyList<Account>> GetFilteredAsync(
         string? search, bool? isActive, AccountType? accountType,
-        int page, int limit, CancellationToken ct = default);
+        int page, int limit, string? sort, CancellationToken ct = default);
+    Task<IReadOnlyList<Account>> GetFilteredAllAsync(
+        string? search, bool? isActive, AccountType? accountType,
+        string? sort, CancellationToken ct = default);
     Task<int> GetFilteredCountAsync(
         string? search, bool? isActive, AccountType? accountType,
         CancellationToken ct = default);

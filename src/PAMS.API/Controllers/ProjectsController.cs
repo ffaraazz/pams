@@ -6,6 +6,7 @@ using PAMS.Application.DTOs.Allocations;
 using PAMS.Application.DTOs.Common;
 using PAMS.Application.DTOs.Projects;
 using PAMS.Application.DTOs.ProjectTeamMembers;
+using PAMS.Application.Interfaces;
 using PAMS.Domain.Enums;
 using PAMS.Domain.Repositories;
 
@@ -23,11 +24,13 @@ public sealed class ProjectsController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IProjectRepository _projectRepo;
+    private readonly IExportService _exportService;
 
-    public ProjectsController(IMediator mediator, IProjectRepository projectRepo)
+    public ProjectsController(IMediator mediator, IProjectRepository projectRepo, IExportService exportService)
     {
         _mediator = mediator;
         _projectRepo = projectRepo;
+        _exportService = exportService;
     }
 
     /// <summary>
@@ -46,6 +49,7 @@ public sealed class ProjectsController : ControllerBase
     /// <param name="projectManagerEmpCode">Filter projects where specified employee is PM.</param>
     /// <param name="page">Page number (default: 1).</param>
     /// <param name="limit">Items per page (default: 10, max: 100).</param>
+    /// <param name="sort">Sort field. Prefix with - for descending (e.g. -projectName).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Paginated list of project summaries.</returns>
     [HttpGet]
@@ -60,13 +64,14 @@ public sealed class ProjectsController : ControllerBase
         [FromQuery] string? projectManagerEmpCode,
         [FromQuery] int page = 1,
         [FromQuery] int limit = 10,
+        [FromQuery] string? sort = null,
         CancellationToken ct = default)
     {
         limit = Math.Clamp(limit, 1, 100);
         page = Math.Max(page, 1);
 
         var projects = await _projectRepo.GetFilteredAsync(
-            search, accountCode, status, isActive, billable, projectManagerEmpCode, page, limit, ct);
+            search, accountCode, status, isActive, billable, projectManagerEmpCode, page, limit, sort, ct);
         var totalRecords = await _projectRepo.GetFilteredCountAsync(
             search, accountCode, status, isActive, billable, projectManagerEmpCode, ct);
 
@@ -102,6 +107,94 @@ public sealed class ProjectsController : ControllerBase
             Data = data,
             Pagination = PaginationMeta.Create(page, limit, totalRecords)
         });
+    }
+
+    /// <summary>
+    /// Export projects as PDF or Excel.
+    /// </summary>
+    /// <remarks>
+    /// Returns all matching projects (no pagination) as a downloadable file.
+    /// Accepts the same filter and sort parameters as the list endpoint.
+    /// An optional JSON body may contain a column name map where keys are field names
+    /// and values are display labels. Only mapped columns appear in the export.
+    /// If no body is sent, all default columns are included.
+    /// </remarks>
+    /// <param name="search">Search by project code or name (partial match, case-insensitive).</param>
+    /// <param name="accountCode">Filter by account code.</param>
+    /// <param name="status">Filter by project status (Upcoming, Active, Completed).</param>
+    /// <param name="isActive">Filter by active status. Omit to return all.</param>
+    /// <param name="billable">Filter by billable flag.</param>
+    /// <param name="projectManagerEmpCode">Filter by project manager employee code.</param>
+    /// <param name="sort">Sort field. Prefix with - for descending (e.g. -projectName).</param>
+    /// <param name="ext">Export format: pdf or xls.</param>
+    /// <param name="columns">Optional column name map. Keys = field names, values = display labels.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>File download (PDF or Excel).</returns>
+    /// <response code="200">File download.</response>
+    /// <response code="400">Invalid export format or invalid sort field.</response>
+    /// <response code="401">Missing or invalid authentication token.</response>
+    /// <response code="403">Insufficient permissions.</response>
+    [HttpPost("export")]
+    [Authorize(Policy = "CanAllocate")]
+    [Produces("application/pdf", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Export(
+        [FromQuery] string? search,
+        [FromQuery] string? accountCode,
+        [FromQuery] ProjectStatus? status,
+        [FromQuery] bool? isActive,
+        [FromQuery] bool? billable,
+        [FromQuery] string? projectManagerEmpCode,
+        [FromQuery] string? sort,
+        [FromQuery] string ext,
+        [FromBody] Dictionary<string, string>? columns = null,
+        CancellationToken ct = default)
+    {
+        var format = ext?.ToLowerInvariant();
+        if (format != "pdf" && format != "xls")
+            return Problem(
+                detail: "ext must be 'pdf' or 'xls'.",
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Bad Request",
+                type: "https://pams.internal/errors/ERR_VALIDATION");
+
+        var projects = await _projectRepo.GetFilteredAllAsync(
+            search, accountCode, status, isActive, billable, projectManagerEmpCode, sort, ct);
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var data = projects.Select(p =>
+        {
+            var resourceCount = (p.Allocations ?? [])
+                .Count(a => a.DeletedAt == null && a.FromDate <= today && (a.ToDate == null || a.ToDate >= today));
+
+            return new ProjectSummaryResponse
+            {
+                ProjectId = p.Id,
+                ProjectCode = p.ProjectCode,
+                ProjectName = p.ProjectName,
+                AccountId = p.AccountId,
+                AccountCode = p.Account?.AccountCode ?? string.Empty,
+                AccountName = p.Account?.AccountName ?? string.Empty,
+                ProjectManagerId = p.ProjectManagerId,
+                ProjectManagerEmpCode = p.ProjectManager?.EmpCode,
+                ProjectManagerName = p.ProjectManager is not null
+                    ? $"{p.ProjectManager.FirstName} {p.ProjectManager.LastName}" : null,
+                Status = p.Status,
+                Billable = p.Billable,
+                IsActive = p.IsActive,
+                StartDate = p.StartDate,
+                EndDate = p.EndDate,
+                ResourceCount = resourceCount
+            };
+        }).ToList();
+
+        var result = await _exportService.GenerateProjectsAsync(
+            data, format == "xls" ? "xlsx" : format, columns, ct);
+
+        return File(result.FileBytes, result.ContentType, result.FileName);
     }
 
     /// <summary>

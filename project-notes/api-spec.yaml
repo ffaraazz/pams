@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Project Allocation Management System (PAMS) API
-  version: 1.10.0
+  version: 1.12.0
   description: |
     REST API for the Project Allocation Management System.
     All endpoints require a Keycloak-issued OIDC Bearer token unless stated otherwise.
@@ -18,6 +18,9 @@ info:
     **Enriched DTOs (v1.7.0):** Resource endpoints now embed related data — ProjectResponse includes allocations and team members, AllocationDetailResponse includes projectRole/billable/account/status. Dashboard endpoints have been removed (v1.8.0) in favor of enriched resource endpoints.
     **Simplified Employee (v1.10.0):** `GET /employees/me` and `GET /employees/{empCode}` return profile data only (no embedded `currentAllocations` or `managedProjects`). Use `GET /allocations` with filters instead.
     **Resource-level billable (v1.10.0):** Allocations carry their own `billable` flag (independent from project-level billable). AllocationDetailResponse exposes both `billable` (resource) and `projectBillable` (project).
+    **Sort parameter (v1.11.0):** All four list endpoints accept an optional `sort` query parameter. Format: `fieldName` (asc) or `-fieldName` (desc). Each endpoint has a default sort order.
+    **Export endpoints (v1.12.0):** Four export endpoints (`POST /{resource}/export`) return all matching rows as PDF or Excel file download. Accepts same filter/sort query parameters as the list endpoint, plus a required `ext` query param (`pdf`|`xls`). An optional JSON body may contain a column name map (`{ "fieldName": "Display Label" }`); only mapped columns appear in the export. If no body is sent, all default columns are included. No pagination applied.
+    **Sort validation (v1.12.0):** Invalid sort field names on any list or export endpoint return 400 with a ProblemDetails response containing `field` and `allowedFields` extensions.
   contact:
     name: PAMS Engineering
   license:
@@ -82,6 +85,7 @@ paths:
           in: query
           schema:
             $ref: "#/components/schemas/AccountType"
+        - $ref: "#/components/parameters/SortParam"
       responses:
         "200":
           description: Paginated list of accounts
@@ -89,6 +93,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PagedResponse_AccountSummary"
+        "400":
+          $ref: "#/components/responses/InvalidSortError"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -197,6 +203,71 @@ paths:
                 status: 422
                 detail: "Account has 3 active project(s). Deactivate or complete them before deactivating the account."
 
+  /accounts/export:
+    post:
+      tags: [Accounts]
+      summary: Export accounts as PDF or Excel (HR, PM)
+      description: |
+        Returns all matching accounts (no pagination) as a downloadable PDF or Excel file.
+        Accepts the same filter and sort query parameters as the list endpoint.
+        An optional JSON body may specify a column name map to control which columns appear
+        in the export and their display labels.
+      operationId: accounts_export
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by account code or name.
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: accountType
+          in: query
+          schema:
+            $ref: "#/components/schemas/AccountType"
+        - $ref: "#/components/parameters/SortParam"
+        - $ref: "#/components/parameters/ExportExtParam"
+      requestBody:
+        required: false
+        description: |
+          Optional column mapping. Keys are response DTO field names (case-insensitive),
+          values are display labels for the export header. Only matched columns are included.
+          If omitted or empty, all default columns are exported.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportColumnMap"
+            example:
+              accountCode: "Account Code"
+              accountName: "Account Name"
+              accountType: "Type"
+              isActive: "Active?"
+      responses:
+        "200":
+          description: File download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="accounts-2026-03-05.pdf"'
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   # ── PROJECTS ───────────────────────────────────────────────────────────────
 
   /projects:
@@ -235,6 +306,7 @@ paths:
           schema:
             type: string
           description: Filter projects where specified employee is PM. Use with current user's empCode to get "my projects".
+        - $ref: "#/components/parameters/SortParam"
       responses:
         "200":
           description: Paginated list of projects
@@ -242,6 +314,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PagedResponse_ProjectSummary"
+        "400":
+          $ref: "#/components/responses/InvalidSortError"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -328,6 +402,83 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /projects/export:
+    post:
+      tags: [Projects]
+      summary: Export projects as PDF or Excel (HR, PM)
+      description: |
+        Returns all matching projects (no pagination) as a downloadable PDF or Excel file.
+        Accepts the same filter and sort query parameters as the list endpoint.
+        An optional JSON body may specify a column name map to control which columns appear
+        in the export and their display labels.
+      operationId: projects_export
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by project code or name.
+        - name: accountCode
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ProjectStatus"
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: billable
+          in: query
+          schema:
+            type: boolean
+        - name: projectManagerEmpCode
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/SortParam"
+        - $ref: "#/components/parameters/ExportExtParam"
+      requestBody:
+        required: false
+        description: |
+          Optional column mapping. Keys are response DTO field names (case-insensitive),
+          values are display labels for the export header. Only matched columns are included.
+          If omitted or empty, all default columns are exported.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportColumnMap"
+            example:
+              projectCode: "Project Code"
+              projectName: "Project Name"
+              accountName: "Account"
+              status: "Status"
+      responses:
+        "200":
+          description: File download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="projects-2026-03-05.pdf"'
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   # ── PROJECT TEAM MEMBERS (FR-020) ─────────────────────────────────────────
 
@@ -496,6 +647,7 @@ paths:
             type: string
             format: date
           description: "End of availability window (default: today)."
+        - $ref: "#/components/parameters/SortParam"
       responses:
         "200":
           description: Paginated list of employees
@@ -503,6 +655,87 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PagedResponse_EmployeeSummary"
+        "400":
+          $ref: "#/components/responses/InvalidSortError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /employees/export:
+    post:
+      tags: [Employees]
+      summary: Export employees as PDF or Excel (HR, PM)
+      description: |
+        Returns all matching employees (no pagination) as a downloadable PDF or Excel file.
+        Accepts the same filter and sort query parameters as the list endpoint.
+        An optional JSON body may specify a column name map to control which columns appear
+        in the export and their display labels.
+      operationId: employees_export
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+            minLength: 2
+        - name: role
+          in: query
+          schema:
+            $ref: "#/components/schemas/EmployeeRole"
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: benchOnly
+          in: query
+          schema:
+            type: boolean
+        - name: windowFrom
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: windowTo
+          in: query
+          schema:
+            type: string
+            format: date
+        - $ref: "#/components/parameters/SortParam"
+        - $ref: "#/components/parameters/ExportExtParam"
+      requestBody:
+        required: false
+        description: |
+          Optional column mapping. Keys are response DTO field names (case-insensitive),
+          values are display labels for the export header. Only matched columns are included.
+          If omitted or empty, all default columns are exported.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportColumnMap"
+            example:
+              empCode: "Employee Code"
+              fullName: "Full Name"
+              designation: "Title"
+              isActive: "Active?"
+      responses:
+        "200":
+          description: File download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="employees-2026-03-05.pdf"'
+        "400":
+          $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -883,6 +1116,7 @@ paths:
           schema:
             type: boolean
           description: Filter by resource-level billable flag.
+        - $ref: "#/components/parameters/SortParam"
       responses:
         "200":
           description: Paginated list of allocations
@@ -890,8 +1124,88 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PagedResponse_AllocationDetail"
+        "400":
+          $ref: "#/components/responses/InvalidSortError"
         "401":
           $ref: "#/components/responses/Unauthorized"
+
+  /allocations/export:
+    post:
+      tags: [Allocations]
+      summary: Export allocations as PDF or Excel (HR, PM)
+      description: |
+        Returns all matching allocations (no pagination) as a downloadable PDF or Excel file.
+        Accepts the same filter and sort query parameters as the list endpoint.
+        Role-based scoping applies (Staff → own, PM → own projects, HR → all).
+        An optional JSON body may specify a column name map to control which columns appear
+        in the export and their display labels.
+      operationId: allocations_export
+      parameters:
+        - name: empCode
+          in: query
+          schema:
+            type: string
+          description: Filter by allocated employee code.
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+          description: Filter by project code.
+        - name: projectManagerEmpCode
+          in: query
+          schema:
+            type: string
+          description: Filter allocations on projects managed by this PM.
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [Active, Ended, Upcoming]
+        - name: billable
+          in: query
+          schema:
+            type: boolean
+        - $ref: "#/components/parameters/SortParam"
+        - $ref: "#/components/parameters/ExportExtParam"
+      requestBody:
+        required: false
+        description: |
+          Optional column mapping. Keys are response DTO field names (case-insensitive),
+          values are display labels for the export header. Only matched columns are included.
+          If omitted or empty, all default columns are exported.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportColumnMap"
+            example:
+              empCode: "Employee Code"
+              empName: "Employee"
+              projectCode: "Project"
+              percentage: "Allocation %"
+              status: "Status"
+      responses:
+        "200":
+          description: File download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="allocations-2026-03-05.pdf"'
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
     post:
       tags: [Allocations]
@@ -1280,6 +1594,27 @@ components:
         default: 10
       description: "Number of items per page (default: 10, max: 100). Per NFR-18."
 
+    SortParam:
+      name: sort
+      in: query
+      schema:
+        type: string
+      description: |
+        Sort field. Use `fieldName` for ascending or `-fieldName` for descending.
+        Each endpoint has a default sort if omitted. Only one sort field per request.
+        Invalid field names return 400 with a ProblemDetails response containing
+        `field` (the invalid field) and `allowedFields` (list of valid field names).
+      example: "-fromDate"
+
+    ExportExtParam:
+      name: ext
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [pdf, xls]
+      description: "Export format: `pdf` for PDF or `xls` for Excel (.xlsx)."
+
   # ── RESPONSES ──────────────────────────────────────────────────────────────
   responses:
     Unauthorized:
@@ -1344,6 +1679,21 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ProblemDetails"
+
+    InvalidSortError:
+      description: "Invalid sort field. Returns the field name and list of allowed sort fields."
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/InvalidSortProblem"
+          example:
+            type: "https://pams.internal/errors/ERR_INVALID_SORT"
+            title: "Invalid Sort Parameter"
+            status: 400
+            detail: "Invalid sort field 'xyz'. Allowed fields: accountCode, accountName, accountType, isActive"
+            instance: "/api/v1/accounts"
+            field: "xyz"
+            allowedFields: ["accountCode", "accountName", "accountType", "isActive"]
 
   # ── SCHEMAS ────────────────────────────────────────────────────────────────
   schemas:
@@ -1429,6 +1779,40 @@ components:
                   type: integer
                 available:
                   type: integer
+
+    InvalidSortProblem:
+      allOf:
+        - $ref: "#/components/schemas/ProblemDetails"
+        - type: object
+          properties:
+            field:
+              type: string
+              description: The invalid sort field that was provided.
+            allowedFields:
+              type: array
+              items:
+                type: string
+              description: List of valid sort field names for this endpoint.
+          example:
+            type: "https://pams.internal/errors/ERR_INVALID_SORT"
+            title: "Invalid Sort Parameter"
+            status: 400
+            detail: "Invalid sort field 'xyz'. Allowed fields: accountCode, accountName, accountType, isActive, totalActiveProjects, totalInactiveProjects"
+            field: "xyz"
+            allowedFields: ["accountCode", "accountName", "accountType", "isActive", "totalActiveProjects", "totalInactiveProjects"]
+
+    ExportColumnMap:
+      type: object
+      nullable: true
+      additionalProperties:
+        type: string
+      description: |
+        Column name mapping for export. Keys are response DTO field names (case-insensitive match),
+        values are the display labels to use in the export header. Only matched columns are included.
+        If null or empty, all default columns are exported.
+      example:
+        empCode: "Employee Code"
+        fullName: "Name"
 
     # ── Pagination ─────────────────────────────────────────────────────────
 

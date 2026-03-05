@@ -1,4 +1,7 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using PAMS.Application.Exceptions;
+using PAMS.Application.Helpers;
 using PAMS.Domain.Entities;
 using PAMS.Domain.Repositories;
 
@@ -41,14 +44,24 @@ public sealed class EmployeeRepository : IEmployeeRepository
     public async Task<IReadOnlyList<Employee>> GetFilteredAsync(
         string? search, Guid? skillId, bool benchOnly, string? role,
         bool? isActive, DateOnly? windowFrom, DateOnly? windowTo,
-        int page, int limit, CancellationToken ct = default)
+        int page, int limit, string? sort, CancellationToken ct = default)
     {
         var query = BuildFilteredQuery(search, skillId, benchOnly, role, isActive, windowFrom, windowTo);
+        query = ApplySort(query, sort);
         return await query
-            .OrderBy(e => e.FirstName).ThenBy(e => e.LastName)
             .Skip((page - 1) * limit)
             .Take(limit)
             .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Employee>> GetFilteredAllAsync(
+        string? search, Guid? skillId, bool benchOnly, string? role,
+        bool? isActive, DateOnly? windowFrom, DateOnly? windowTo,
+        string? sort, CancellationToken ct = default)
+    {
+        var query = BuildFilteredQuery(search, skillId, benchOnly, role, isActive, windowFrom, windowTo);
+        query = ApplySort(query, sort);
+        return await query.ToListAsync(ct);
     }
 
     public async Task<int> GetFilteredCountAsync(
@@ -133,5 +146,33 @@ public sealed class EmployeeRepository : IEmployeeRepository
         }
 
         return query;
+    }
+
+    private static readonly Dictionary<string, Expression<Func<Employee, object>>> SortFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["firstName"] = e => e.FirstName,
+        ["lastName"] = e => e.LastName,
+        ["fullName"] = e => e.FirstName,
+        ["empCode"] = e => e.EmpCode,
+        ["email"] = e => e.Email,
+        ["designation"] = e => e.Designation,
+        ["role"] = e => e.Role,
+        ["isActive"] = e => e.IsActive,
+        ["createdAt"] = e => e.CreatedAt,
+        ["updatedAt"] = e => e.UpdatedAt,
+    };
+
+    private static IQueryable<Employee> ApplySort(IQueryable<Employee> query, string? sort)
+    {
+        if (string.IsNullOrWhiteSpace(sort))
+            return query.OrderBy(e => e.FirstName).ThenBy(e => e.LastName);
+
+        var isDescending = sort.StartsWith('-');
+        var field = isDescending ? sort[1..] : sort;
+
+        if (SortFields.TryGetValue(field, out var keySelector))
+            return isDescending ? query.OrderByDescending(keySelector) : query.OrderBy(keySelector);
+
+        throw new InvalidSortException(field, SortFields.Keys);
     }
 }

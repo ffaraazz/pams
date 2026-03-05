@@ -25,19 +25,22 @@ public sealed class AllocationsController : ControllerBase
     private readonly IEmployeeRepository _employeeRepo;
     private readonly IProjectRepository _projectRepo;
     private readonly ICurrentUserService _currentUser;
+    private readonly IExportService _exportService;
 
     public AllocationsController(
         IMediator mediator,
         IAllocationRepository allocationRepo,
         IEmployeeRepository employeeRepo,
         IProjectRepository projectRepo,
-        ICurrentUserService currentUser)
+        ICurrentUserService currentUser,
+        IExportService exportService)
     {
         _mediator = mediator;
         _allocationRepo = allocationRepo;
         _employeeRepo = employeeRepo;
         _projectRepo = projectRepo;
         _currentUser = currentUser;
+        _exportService = exportService;
     }
 
     /// <summary>
@@ -54,6 +57,7 @@ public sealed class AllocationsController : ControllerBase
         [FromQuery] bool? billable,
         [FromQuery] int page = 1,
         [FromQuery] int limit = 10,
+        [FromQuery] string? sort = null,
         CancellationToken ct = default)
     {
         // Role scoping
@@ -77,7 +81,7 @@ public sealed class AllocationsController : ControllerBase
         page = Math.Max(page, 1);
 
         var allocations = await _allocationRepo.GetFilteredAsync(
-            empCode, projectCode, projectManagerEmpCode, status, billable, page, limit, ct);
+            empCode, projectCode, projectManagerEmpCode, status, billable, page, limit, sort, ct);
         var totalRecords = await _allocationRepo.GetFilteredCountAsync(
             empCode, projectCode, projectManagerEmpCode, status, billable, ct);
 
@@ -90,6 +94,83 @@ public sealed class AllocationsController : ControllerBase
             Data = data,
             Pagination = PaginationMeta.Create(page, limit, totalRecords)
         });
+    }
+
+    /// <summary>
+    /// Export allocations as PDF or Excel.
+    /// </summary>
+    /// <remarks>
+    /// Returns all matching allocations (no pagination) as a downloadable file.
+    /// Accepts the same filter and sort parameters as the list endpoint.
+    /// Role-based scoping applies: Staff sees own allocations, PM sees own projects, HR sees all.
+    /// An optional JSON body may contain a column name map where keys are field names
+    /// and values are display labels. Only mapped columns appear in the export.
+    /// If no body is sent, all default columns are included.
+    /// </remarks>
+    /// <param name="empCode">Filter by allocated employee code.</param>
+    /// <param name="projectCode">Filter by project code.</param>
+    /// <param name="projectManagerEmpCode">Filter allocations on projects managed by this PM.</param>
+    /// <param name="status">Filter by computed allocation status (Active, Ended, Upcoming).</param>
+    /// <param name="billable">Filter by resource-level billable flag.</param>
+    /// <param name="sort">Sort field. Prefix with - for descending (e.g. -fromDate).</param>
+    /// <param name="ext">Export format: pdf or xls.</param>
+    /// <param name="columns">Optional column name map. Keys = field names, values = display labels.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>File download (PDF or Excel).</returns>
+    /// <response code="200">File download.</response>
+    /// <response code="400">Invalid export format or invalid sort field.</response>
+    /// <response code="401">Missing or invalid authentication token.</response>
+    /// <response code="403">Insufficient permissions (role-scoped).</response>
+    [HttpPost("export")]
+    [Produces("application/pdf", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Export(
+        [FromQuery] string? empCode,
+        [FromQuery] string? projectCode,
+        [FromQuery] string? projectManagerEmpCode,
+        [FromQuery] string? status,
+        [FromQuery] bool? billable,
+        [FromQuery] string? sort,
+        [FromQuery] string ext,
+        [FromBody] Dictionary<string, string>? columns = null,
+        CancellationToken ct = default)
+    {
+        var format = ext?.ToLowerInvariant();
+        if (format != "pdf" && format != "xls")
+            return Problem(
+                detail: "ext must be 'pdf' or 'xls'.",
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Bad Request",
+                type: "https://pams.internal/errors/ERR_VALIDATION");
+
+        // Role scoping (same as List)
+        if (_currentUser.Role == EmployeeRole.Staff)
+        {
+            if (empCode is not null && empCode != _currentUser.EmpCode)
+                return Forbid();
+            empCode = _currentUser.EmpCode;
+        }
+        else if (_currentUser.Role == EmployeeRole.ProjectManager)
+        {
+            if (projectManagerEmpCode is not null && projectManagerEmpCode != _currentUser.EmpCode)
+                return Forbid();
+            projectManagerEmpCode = _currentUser.EmpCode;
+        }
+
+        var allocations = await _allocationRepo.GetFilteredAllAsync(
+            empCode, projectCode, projectManagerEmpCode, status, billable, sort, ct);
+
+        var data = allocations
+            .Select(a => AllocationDetailResponse.MapFrom(a))
+            .ToList();
+
+        var result = await _exportService.GenerateAllocationsAsync(
+            data, format == "xls" ? "xlsx" : format, columns, ct);
+
+        return File(result.FileBytes, result.ContentType, result.FileName);
     }
 
     /// <summary>
@@ -205,7 +286,11 @@ public sealed class AllocationsController : ControllerBase
         CancellationToken ct)
     {
         if (!string.Equals(request.Action, "stop", StringComparison.OrdinalIgnoreCase))
-            return BadRequest("Only 'stop' action is supported.");
+            return Problem(
+                detail: "Only 'stop' action is supported.",
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Bad Request",
+                type: "https://pams.internal/errors/ERR_VALIDATION");
 
         var command = new StopAllocationCommand { AllocationId = allocationId };
         await _mediator.Send(command, ct);

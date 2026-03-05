@@ -4,46 +4,50 @@
 
 | Field   | Value                             |
 | ------- | --------------------------------- |
-| Version | 1.1.0                             |
-| Date    | 2026-03-04                        |
+| Version | 1.2.0                             |
+| Date    | 2026-03-05                        |
 | Author  | ProductArchitect (GitHub Copilot) |
 
 ---
 
 ## 1. API Endpoint Master Table
 
-All 28 endpoints in a single reference table.
+All 32 endpoints in a single reference table.
 
-| #   | Verb   | Route                                                  | Auth        | Purpose                                      | Used By       |
-| --- | ------ | ------------------------------------------------------ | ----------- | -------------------------------------------- | ------------- |
-| 1   | GET    | /api/v1/accounts                                       | CanAllocate | List accounts (paginated, filterable)        | HR            |
-| 2   | GET    | /api/v1/accounts/{accountCode}                         | CanAllocate | Get single account                           | HR            |
-| 3   | POST   | /api/v1/accounts                                       | HROnly      | Create account                               | HR            |
-| 4   | PUT    | /api/v1/accounts/{accountCode}                         | HROnly      | Update account                               | HR            |
-| 5   | GET    | /api/v1/projects                                       | Authorize   | List projects (paginated, filterable)        | HR, PM        |
-| 6   | GET    | /api/v1/projects/{projectCode}                         | Authorize   | Get project detail (with allocations + team) | HR, PM, Staff |
-| 7   | POST   | /api/v1/projects                                       | HROnly      | Create project                               | HR            |
-| 8   | PUT    | /api/v1/projects/{projectCode}                         | CanAllocate | Update project (PM scoped)                   | HR, PM        |
-| 9   | GET    | /api/v1/employees                                      | CanAllocate | List/search employees (paginated)            | HR, PM        |
-| 10  | GET    | /api/v1/employees/{empCode}                            | Authorize   | Get employee profile (no allocations)        | HR, PM, Staff |
-| 11  | GET    | /api/v1/employees/me                                   | Authorize   | Get MY profile (profile only)                | Everyone      |
-| 12  | POST   | /api/v1/employees                                      | HROnly      | Create employee                              | HR            |
-| 13  | PUT    | /api/v1/employees/{empCode}                            | HROnly      | Update employee                              | HR            |
-| 14  | GET    | /api/v1/allocations                                    | Authorize   | List allocations (paginated, filterable)     | Everyone      |
-| 15  | POST   | /api/v1/allocations                                    | CanAllocate | Create allocation                            | HR, PM        |
-| 16  | GET    | /api/v1/allocations/{id}                               | Authorize   | Get single allocation                        | Anyone        |
-| 17  | PUT    | /api/v1/allocations/{id}                               | CanAllocate | Update allocation % and dates                | HR, PM        |
-| 18  | PATCH  | /api/v1/allocations/{id}                               | CanAllocate | Stop allocation (set ToDate=today)           | HR, PM        |
-| 19  | DELETE | /api/v1/allocations/{id}                               | CanAllocate | Soft-delete past allocation                  | HR, PM        |
-| 20  | GET    | /api/v1/allocations/capacity-check                     | CanAllocate | Check employee availability in date window   | HR, PM        |
-| 21  | GET    | /api/v1/projects/{code}/team-members                   | CanAllocate | List team-lead/reportee assignments          | HR, PM        |
-| 22  | POST   | /api/v1/projects/{code}/team-members                   | CanAllocate | Add team assignment                          | HR, PM        |
-| 23  | DELETE | /api/v1/projects/{code}/team-members/{lead}/{reportee} | CanAllocate | Remove team assignment                       | HR, PM        |
-| 24  | GET    | /api/v1/skills                                         | Authorize   | List skills                                  | Everyone      |
-| 25  | POST   | /api/v1/skills                                         | HROnly      | Create skill                                 | HR            |
-| 26  | PUT    | /api/v1/skills/{skillId}                               | HROnly      | Update skill                                 | HR            |
-| 27  | GET    | /api/v1/system-config                                  | HROnly      | Get allocation rules                         | HR            |
-| 28  | PUT    | /api/v1/system-config                                  | HROnly      | Update allocation rules                      | HR            |
+| #   | Verb   | Route                                                  | Auth        | Purpose                                            | Used By       |
+| --- | ------ | ------------------------------------------------------ | ----------- | -------------------------------------------------- | ------------- |
+| 1   | GET    | /api/v1/accounts                                       | CanAllocate | List accounts (paginated, filterable, sortable)    | HR            |
+| 2   | GET    | /api/v1/accounts/{accountCode}                         | CanAllocate | Get single account                                 | HR            |
+| 3   | POST   | /api/v1/accounts                                       | HROnly      | Create account                                     | HR            |
+| 4   | PUT    | /api/v1/accounts/{accountCode}                         | HROnly      | Update account                                     | HR            |
+| 5   | GET    | /api/v1/projects                                       | Authorize   | List projects (paginated, filterable, sortable)    | HR, PM        |
+| 6   | GET    | /api/v1/projects/{projectCode}                         | Authorize   | Get project detail (with allocations + team)       | HR, PM, Staff |
+| 7   | POST   | /api/v1/projects                                       | HROnly      | Create project                                     | HR            |
+| 8   | PUT    | /api/v1/projects/{projectCode}                         | CanAllocate | Update project (PM scoped)                         | HR, PM        |
+| 9   | GET    | /api/v1/employees                                      | CanAllocate | List/search employees (paginated, sortable)        | HR, PM        |
+| 10  | GET    | /api/v1/employees/{empCode}                            | Authorize   | Get employee profile (no allocations)              | HR, PM, Staff |
+| 11  | GET    | /api/v1/employees/me                                   | Authorize   | Get MY profile (profile only)                      | Everyone      |
+| 12  | POST   | /api/v1/employees                                      | HROnly      | Create employee                                    | HR            |
+| 13  | PUT    | /api/v1/employees/{empCode}                            | HROnly      | Update employee                                    | HR            |
+| 14  | GET    | /api/v1/allocations                                    | Authorize   | List allocations (paginated, filterable, sortable) | Everyone      |
+| 15  | POST   | /api/v1/allocations                                    | CanAllocate | Create allocation                                  | HR, PM        |
+| 16  | GET    | /api/v1/allocations/{id}                               | Authorize   | Get single allocation                              | Anyone        |
+| 17  | PUT    | /api/v1/allocations/{id}                               | CanAllocate | Update allocation % and dates                      | HR, PM        |
+| 18  | PATCH  | /api/v1/allocations/{id}                               | CanAllocate | Stop allocation (set ToDate=today)                 | HR, PM        |
+| 19  | DELETE | /api/v1/allocations/{id}                               | CanAllocate | Soft-delete past allocation                        | HR, PM        |
+| 20  | GET    | /api/v1/allocations/capacity-check                     | CanAllocate | Check employee availability in date window         | HR, PM        |
+| 21  | GET    | /api/v1/projects/{code}/team-members                   | CanAllocate | List team-lead/reportee assignments                | HR, PM        |
+| 22  | POST   | /api/v1/projects/{code}/team-members                   | CanAllocate | Add team assignment                                | HR, PM        |
+| 23  | DELETE | /api/v1/projects/{code}/team-members/{lead}/{reportee} | CanAllocate | Remove team assignment                             | HR, PM        |
+| 24  | GET    | /api/v1/skills                                         | Authorize   | List skills                                        | Everyone      |
+| 25  | POST   | /api/v1/skills                                         | HROnly      | Create skill                                       | HR            |
+| 26  | PUT    | /api/v1/skills/{skillId}                               | HROnly      | Update skill                                       | HR            |
+| 27  | GET    | /api/v1/system-config                                  | HROnly      | Get allocation rules                               | HR            |
+| 28  | PUT    | /api/v1/system-config                                  | HROnly      | Update allocation rules                            | HR            |
+| 29  | GET    | /api/v1/accounts/export                                | CanAllocate | Export accounts as PDF or XLS                      | HR, PM        |
+| 30  | GET    | /api/v1/projects/export                                | CanAllocate | Export projects as PDF or XLS                      | HR, PM        |
+| 31  | GET    | /api/v1/employees/export                               | CanAllocate | Export employees as PDF or XLS                     | HR, PM        |
+| 32  | GET    | /api/v1/allocations/export                             | CanAllocate | Export allocations as PDF or XLS                   | HR, PM        |
 
 ---
 
@@ -337,6 +341,23 @@ DELETE /api/v1/projects/{code}/team-members/{lead}/{reportee}       -> Remove as
 GET /api/v1/system-config             -> Get current allocation rules (minAllocationPct, allocationIncrement)
 PUT /api/v1/system-config             -> Update allocation rules
 ```
+
+### Export Data (v1.11.0)
+
+HR and PM can export filtered data as PDF or Excel files. Exports return all matching rows (no pagination).
+
+```
+GET /api/v1/accounts/export?ext=pdf               -> Export all accounts as PDF
+GET /api/v1/accounts/export?ext=xls               -> Export all accounts as Excel
+GET /api/v1/projects/export?ext=pdf&status=Active  -> Export active projects as PDF
+GET /api/v1/projects/export?ext=xls&billable=true  -> Export billable projects as Excel
+GET /api/v1/employees/export?ext=pdf&isActive=true -> Export active employees as PDF
+GET /api/v1/employees/export?ext=xls&benchOnly=true -> Export bench employees as Excel
+GET /api/v1/allocations/export?ext=pdf&status=Active -> Export active allocations as PDF
+GET /api/v1/allocations/export?ext=xls&sort=-fromDate -> Export allocations as Excel, sorted by fromDate desc
+```
+
+All export endpoints accept the same filter parameters as their respective list endpoints, plus the required `ext` parameter (`pdf` or `xls`) and optional `sort` parameter.
 
 ### Manage Skills
 

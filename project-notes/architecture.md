@@ -7,8 +7,8 @@
 | Field          | Value                                       |
 | -------------- | ------------------------------------------- |
 | Project        | Project Allocation Management System (PAMS) |
-| Version        | 1.7.0                                       |
-| Date           | 2026-03-04                                  |
+| Version        | 1.8.0                                       |
+| Date           | 2026-03-05                                  |
 | Author         | ProductArchitect (GitHub Copilot)           |
 | Status         | Approved for Implementation                 |
 | Pipeline State | Phase 2 – Architecture Complete             |
@@ -885,3 +885,260 @@ This decouples allocation queries from employee profile queries, enabling indepe
 ```
 
 Deployment can be Docker Compose (development) or Kubernetes (production). Both are containerizable; the API image is a single `mcr.microsoft.com/dotnet/aspnet:10.0` container.
+
+---
+
+## 19. Sort & Export Architecture (v1.11.0)
+
+### 19.1 Sort Parameter
+
+All four paginated list endpoints (`GET /allocations`, `GET /projects`, `GET /accounts`, `GET /employees`) accept an optional `sort` query parameter.
+
+**Format:** `fieldName` (ascending) or `-fieldName` (descending). Only one sort field at a time.
+
+**Default sort per endpoint:**
+
+| Endpoint           | Default Sort  | Direction  |
+| ------------------ | ------------- | ---------- |
+| `GET /allocations` | `fromDate`    | Descending |
+| `GET /projects`    | `projectName` | Ascending  |
+| `GET /accounts`    | `accountName` | Ascending  |
+| `GET /employees`   | `fullName`    | Ascending  |
+
+#### SortHelper Utility (Application Layer)
+
+A static helper class in `PAMS.Application/Helpers/SortHelper.cs` handles sort parameter parsing and validation.
+
+```csharp
+// Application/Helpers/SortHelper.cs
+public static class SortHelper
+{
+    /// <summary>
+    /// Parses a sort string into (propertyName, isDescending).
+    /// Returns the default sort if input is null/empty.
+    /// Throws ArgumentException if the field is not in the allowed whitelist.
+    /// </summary>
+    public static (string PropertyName, bool IsDescending) Parse(
+        string? sort,
+        string defaultField,
+        bool defaultDescending,
+        IReadOnlyDictionary<string, string> allowedFields);
+}
+```
+
+**Parsing logic:**
+
+1. If `sort` is null or empty → return `(defaultField, defaultDescending)`
+2. If `sort` starts with `-` → `isDescending = true`, strip the prefix
+3. Look up field name (case-insensitive) in the `allowedFields` dictionary → maps query param name to entity property name
+4. If field not found → throw `ArgumentException` (caught by controller, returned as 400)
+
+**Allowed sort fields per entity (whitelist dictionaries — static, per repository):**
+
+| Entity     | Allowed Sort Fields                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------ |
+| Allocation | `fromDate`, `toDate`, `percentage`, `employeeName`, `projectName`, `createdAt`, `status`               |
+| Project    | `projectName`, `projectCode`, `accountName`, `startDate`, `endDate`, `status`, `resourceCount`         |
+| Account    | `accountName`, `accountCode`, `accountType`, `isActive`, `totalActiveProjects`                         |
+| Employee   | `fullName`, `empCode`, `designation`, `role`, `isActive`, `availabilityPercentage`, `allocationStatus` |
+
+Invalid sort fields return HTTP 400 with a `ProblemDetails` body listing the valid field names.
+
+#### Repository Signature Changes
+
+`GetFilteredAsync()` methods on all four repositories gain a `string? sort` parameter. Count methods are unchanged (sort is irrelevant for counts).
+
+```csharp
+// IAllocationRepository — updated
+Task<IReadOnlyList<Allocation>> GetFilteredAsync(
+    string? empCode, string? projectCode, string? projectManagerEmpCode,
+    string? status, bool? billable,
+    int page, int limit, string? sort, CancellationToken ct);
+
+// IProjectRepository — updated
+Task<IReadOnlyList<Project>> GetFilteredAsync(
+    string? search, string? accountCode, ProjectStatus? status,
+    bool? isActive, bool? billable, string? pmEmpCode,
+    int page, int limit, string? sort, CancellationToken ct);
+
+// IAccountRepository — updated
+Task<IReadOnlyList<Account>> GetFilteredAsync(
+    string? search, bool? isActive, AccountType? accountType,
+    int page, int limit, string? sort, CancellationToken ct);
+
+// IEmployeeRepository — updated
+Task<IReadOnlyList<Employee>> GetFilteredAsync(
+    string? search, Guid? skillId, bool benchOnly, string? role,
+    bool? isActive, DateOnly? windowFrom, DateOnly? windowTo,
+    int page, int limit, string? sort, CancellationToken ct);
+```
+
+**Repository implementation:** Each concrete repository maps the parsed `sort` field to an EF `OrderBy`/`OrderByDescending` expression using the allowed-fields dictionary. The `SortHelper.Parse()` result is passed into the repository from the query handler.
+
+#### Validation Flow
+
+```
+Controller receives ?sort=-projectName
+    │
+    ▼
+Query Handler calls SortHelper.Parse(sort, defaultField, defaultDesc, allowedFields)
+    │
+    ├── Valid field   → ("projectName", true) passed to repository
+    └── Invalid field → ArgumentException → Controller catches → 400 Bad Request
+```
+
+---
+
+### 19.2 Export Feature
+
+Four new export endpoints that return all matching rows (no pagination) as a downloadable PDF or XLS file.
+
+| Endpoint                  | Auth        | Filters                         |
+| ------------------------- | ----------- | ------------------------------- |
+| `GET /allocations/export` | CanAllocate | Same as `GET /allocations` list |
+| `GET /projects/export`    | CanAllocate | Same as `GET /projects` list    |
+| `GET /accounts/export`    | CanAllocate | Same as `GET /accounts` list    |
+| `GET /employees/export`   | CanAllocate | Same as `GET /employees` list   |
+
+All exports also accept the `sort` parameter for ordering the exported data.
+
+#### New NuGet Dependencies (PAMS.Infrastructure.csproj)
+
+| Package   | Version | Purpose                  |
+| --------- | ------- | ------------------------ |
+| ClosedXML | 0.104+  | Excel (.xlsx) generation |
+| QuestPDF  | 2024.x  | PDF document generation  |
+
+#### Interface: IExportService (Application Layer)
+
+```csharp
+// Application/Interfaces/IExportService.cs
+public interface IExportService
+{
+    Task<ExportResult> GenerateAllocationsAsync(IReadOnlyList<AllocationDetailResponse> data, string format, CancellationToken ct);
+    Task<ExportResult> GenerateProjectsAsync(IReadOnlyList<ProjectSummaryResponse> data, string format, CancellationToken ct);
+    Task<ExportResult> GenerateAccountsAsync(IReadOnlyList<AccountSummaryResponse> data, string format, CancellationToken ct);
+    Task<ExportResult> GenerateEmployeesAsync(IReadOnlyList<EmployeeSummaryResponse> data, string format, CancellationToken ct);
+}
+
+public record ExportResult(byte[] FileBytes, string ContentType, string FileName);
+```
+
+#### Implementation: ExportService (Infrastructure Layer)
+
+`Infrastructure/Services/ExportService.cs` implements `IExportService` using ClosedXML for XLS and QuestPDF for PDF.
+
+**Excel generation (ClosedXML):**
+
+```
+1. Create XLWorkbook
+2. Add worksheet named after entity (e.g., "Allocations")
+3. Write header row from DTO property names
+4. Write data rows
+5. Auto-fit columns
+6. Return byte[] via MemoryStream
+```
+
+**PDF generation (QuestPDF):**
+
+```
+1. Create Document with IDocumentContainer
+2. Add page with header (title + date + filter summary)
+3. Add table with columns matching export fields
+4. Style: alternating row colors, bordered cells
+5. Add footer with page numbers
+6. Return byte[] via GeneratePdf()
+```
+
+#### Export Column Definitions
+
+| Export      | Columns                                                                                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Allocations | EmpCode, EmployeeName, ProjectCode, ProjectName, AccountName, Percentage, FromDate, ToDate, Status, Billable, ProjectRole                 |
+| Projects    | ProjectCode, ProjectName, AccountCode, AccountName, PMName, Status, Billable, IsActive, StartDate, EndDate, ResourceCount                 |
+| Accounts    | AccountCode, AccountName, AccountType, IsActive, TotalActiveProjects, TotalInactiveProjects, TotalActiveEmployees, TotalInactiveEmployees |
+| Employees   | EmpCode, FullName, Designation, Role, IsActive, AvailabilityPercentage, AllocationStatus, Skills                                          |
+
+#### Repository Changes for Export
+
+Each repository gets a new `GetFilteredAllAsync()` method that returns **all matching rows without pagination**, reusing the same filter/sort logic as `GetFilteredAsync()` but omitting `OFFSET`/`LIMIT`.
+
+```csharp
+// IAllocationRepository — new method
+Task<IReadOnlyList<Allocation>> GetFilteredAllAsync(
+    string? empCode, string? projectCode, string? projectManagerEmpCode,
+    string? status, bool? billable, string? sort, CancellationToken ct);
+
+// IProjectRepository — new method
+Task<IReadOnlyList<Project>> GetFilteredAllAsync(
+    string? search, string? accountCode, ProjectStatus? status,
+    bool? isActive, bool? billable, string? pmEmpCode,
+    string? sort, CancellationToken ct);
+
+// IAccountRepository — new method
+Task<IReadOnlyList<Account>> GetFilteredAllAsync(
+    string? search, bool? isActive, AccountType? accountType,
+    string? sort, CancellationToken ct);
+
+// IEmployeeRepository — new method
+Task<IReadOnlyList<Employee>> GetFilteredAllAsync(
+    string? search, Guid? skillId, bool benchOnly, string? role,
+    bool? isActive, DateOnly? windowFrom, DateOnly? windowTo,
+    string? sort, CancellationToken ct);
+```
+
+Internally, each concrete repository extracts the shared query-building logic into a private `BuildFilteredQuery()` method used by both `GetFilteredAsync()` (with pagination) and `GetFilteredAllAsync()` (without pagination).
+
+#### Controller Pattern
+
+Export actions are added to the existing controllers as `[HttpGet("export")]`:
+
+```csharp
+// Example: AllocationsController
+[HttpGet("export")]
+[Authorize(Policy = "CanAllocate")]
+public async Task<IActionResult> Export(
+    [FromQuery] string? empCode,
+    [FromQuery] string? projectCode,
+    [FromQuery] string? projectManagerEmpCode,
+    [FromQuery] string? status,
+    [FromQuery] bool? billable,
+    [FromQuery] string? sort,
+    [FromQuery, Required] string ext)  // "pdf" or "xls"
+{
+    // 1. Validate ext (must be "pdf" or "xls")
+    // 2. Validate sort via SortHelper
+    // 3. Call repository.GetFilteredAllAsync(...)
+    // 4. Map to DTOs
+    // 5. Call exportService.GenerateAllocationsAsync(dtos, ext)
+    // 6. Return File(result.FileBytes, result.ContentType, result.FileName)
+}
+```
+
+**Response:** Binary file stream with appropriate `Content-Type` and `Content-Disposition` headers.
+
+| ext | Content-Type                                                        | File Extension |
+| --- | ------------------------------------------------------------------- | -------------- |
+| xls | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | `.xlsx`        |
+| pdf | `application/pdf`                                                   | `.pdf`         |
+
+#### Data Flow: Export Request
+
+```
+GET /allocations/export?status=Active&ext=pdf&sort=-fromDate
+    │
+    ▼
+[Auth middleware — CanAllocate policy]
+    │
+    ▼
+AllocationsController.Export()
+    │  1. Validate ext ∈ {pdf, xls}
+    │  2. SortHelper.Parse(sort, ...)
+    │  3. repo.GetFilteredAllAsync(filters, sort)
+    │  4. Map entities → AllocationDetailResponse[]
+    │  5. exportService.GenerateAllocationsAsync(dtos, "pdf")
+    │
+    ▼
+HTTP 200 — Content-Type: application/pdf
+           Content-Disposition: attachment; filename="allocations-2026-03-05.pdf"
+```

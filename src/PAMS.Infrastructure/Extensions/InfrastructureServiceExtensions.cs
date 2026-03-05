@@ -36,6 +36,7 @@ public static class InfrastructureServiceExtensions
         // Services
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IDateTimeProvider, DateTimeProvider>();
+        services.AddScoped<IExportService, ExportService>();
 
         return services;
     }

@@ -38,6 +38,7 @@ public sealed class ExceptionHandlerMiddleware
             ConflictException ex => (HttpStatusCode.Conflict, ex.ErrorCode, "Conflict"),
             CapacityExceededException => (HttpStatusCode.UnprocessableEntity, "ERR_CAPACITY_EXCEEDED", "Capacity Exceeded"),
             CircularReportingException => (HttpStatusCode.UnprocessableEntity, "ERR_CIRCULAR_REPORTING", "Circular Reporting"),
+            InvalidSortException => (HttpStatusCode.BadRequest, "ERR_INVALID_SORT", "Invalid Sort Parameter"),
             FluentValidation.ValidationException => (HttpStatusCode.BadRequest, "ERR_VALIDATION", "Validation Error"),
             DomainException ex => (HttpStatusCode.UnprocessableEntity, ex.ErrorCode, "Domain Error"),
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "ERR_UNAUTHORIZED", "Unauthorized"),
@@ -66,6 +67,13 @@ public sealed class ExceptionHandlerMiddleware
             problemDetails.Extensions["currentTotal"] = capacityEx.CurrentTotal;
             problemDetails.Extensions["requested"] = capacityEx.Requested;
             problemDetails.Extensions["available"] = capacityEx.Available;
+        }
+
+        // Add extensions for InvalidSortException
+        if (exception is InvalidSortException sortEx)
+        {
+            problemDetails.Extensions["field"] = sortEx.Field;
+            problemDetails.Extensions["allowedFields"] = sortEx.AllowedFields;
         }
 
         // Add validation errors for FluentValidation

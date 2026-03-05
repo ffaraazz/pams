@@ -18,7 +18,11 @@ public interface IAllocationRepository
     Task<IReadOnlyList<Allocation>> GetFilteredAsync(
         string? empCode, string? projectCode, string? projectManagerEmpCode,
         string? status, bool? billable,
-        int page, int limit, CancellationToken ct = default);
+        int page, int limit, string? sort, CancellationToken ct = default);
+    Task<IReadOnlyList<Allocation>> GetFilteredAllAsync(
+        string? empCode, string? projectCode, string? projectManagerEmpCode,
+        string? status, bool? billable,
+        string? sort, CancellationToken ct = default);
     Task<int> GetFilteredCountAsync(
         string? empCode, string? projectCode, string? projectManagerEmpCode,
         string? status, bool? billable,

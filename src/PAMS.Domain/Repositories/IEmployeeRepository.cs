@@ -12,7 +12,11 @@ public interface IEmployeeRepository
     Task<IReadOnlyList<Employee>> GetFilteredAsync(
         string? search, Guid? skillId, bool benchOnly, string? role,
         bool? isActive, DateOnly? windowFrom, DateOnly? windowTo,
-        int page, int limit, CancellationToken ct = default);
+        int page, int limit, string? sort, CancellationToken ct = default);
+    Task<IReadOnlyList<Employee>> GetFilteredAllAsync(
+        string? search, Guid? skillId, bool benchOnly, string? role,
+        bool? isActive, DateOnly? windowFrom, DateOnly? windowTo,
+        string? sort, CancellationToken ct = default);
     Task<int> GetFilteredCountAsync(
         string? search, Guid? skillId, bool benchOnly, string? role,
         bool? isActive, DateOnly? windowFrom, DateOnly? windowTo,

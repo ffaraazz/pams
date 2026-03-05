@@ -2,7 +2,94 @@
 
 ## Current Pipeline State: `DEV_VERIFIED_ALL_TESTS_PASS`
 
-### Active Feature: Allocation Billable + Simplify /me + GET /allocations + ResourceCount + Date Validation — COMPLETE
+### Active Feature: Export Enhancements — Column Map, PDF Borders & Logos — COMPLETE
+
+**Scope:**
+
+1. Export endpoints changed from `GET` to `POST` with optional JSON body containing column name map (`{ "empCode": "Employee Code", ... }`)
+2. Only mapped fields appear in export; unmapped fields are hidden. When no body is sent, all default columns are included.
+3. PDF exports: table borders, alternating row colors, NexFlow app logo (SVG, left-aligned), NexTurn company logo (PNG, right-aligned), styled footer with generation date
+4. Excel exports: styled header row (indigo background), cell borders, Yes/No for booleans
+5. Column registries for all 4 entities covering all response DTO fields
+
+**Changes:**
+
+- NEW: `src/PAMS.Application/DTOs/Common/ExportRequest.cs` — `ExportRequest` record with `Dictionary<string, string>? Columns`
+- `IExportService.cs`: Added `Dictionary<string, string>? columns = null` parameter to all 4 methods
+- `ExportService.cs`: Full rewrite — column registries with `BuildColumnar<T>`, company logo caching, SVG app logo, PDF borders, styled Excel
+- All 4 controllers: `[HttpGet("export")]` → `[HttpPost("export")]`, added `[FromBody] ExportRequest?`, passes `exportRequest?.Columns`
+- `ExportServiceTests.cs`: Updated all method signature tests for 4 parameters
+
+**Usage Example:**
+
+```
+POST /api/v1/employees/export?ext=pdf
+Content-Type: application/json
+
+{
+  "columns": {
+    "empCode": "Employee Code",
+    "fullName": "Name",
+    "designation": "Title",
+    "isActive": "Status"
+  }
+}
+```
+
+**Verification:** 0 errors, 0 warnings, 231/231 tests pass, Docker container rebuilt
+
+---
+
+### Previous Feature: Sort Field Expansion (v2) + Common Error Schema — COMPLETE
+
+**Scope:**
+
+1. Expand SortFields to cover ALL response DTO fields: `projectBillable`, `status` (Allocation); `projectManagerEmpCode` (Project); `totalActiveProjects`, `totalInactiveProjects` (Account)
+2. Create `InvalidSortException` with `Field` and `AllowedFields` properties
+3. Handle `InvalidSortException` in `ExceptionHandlerMiddleware` returning ProblemDetails with `field` and `allowedFields` extensions
+4. Remove all try-catch(ArgumentException) from controllers — middleware handles it
+5. Convert ALL `BadRequest(string)` calls to `Problem(...)` returning ProblemDetails (5 occurrences)
+
+**Changes:**
+
+- NEW: `src/PAMS.Application/Exceptions/InvalidSortException.cs`
+- `ExceptionHandlerMiddleware.cs`: Added `InvalidSortException` case + extensions
+- `AllocationRepository.cs`: +2 sort fields (`projectBillable`, `status`), throws `InvalidSortException`
+- `ProjectRepository.cs`: +1 sort field (`projectManagerEmpCode`), throws `InvalidSortException`
+- `AccountRepository.cs`: +2 sort fields (`totalActiveProjects`, `totalInactiveProjects`), throws `InvalidSortException`
+- `EmployeeRepository.cs`: throws `InvalidSortException`
+- All 4 controllers: removed 8 try-catch blocks, converted 5 BadRequest(string) to Problem(...)
+
+**Error Response Format (all endpoints):**
+
+```json
+{
+  "type": "https://pams.internal/errors/ERR_INVALID_SORT",
+  "title": "Invalid Sort Parameter",
+  "status": 400,
+  "detail": "Invalid sort field 'xyz'. Allowed fields: ...",
+  "instance": "/api/v1/...",
+  "field": "xyz",
+  "allowedFields": ["field1", "field2", ...]
+}
+```
+
+**Verification:** 0 errors, 0 warnings, 231/231 tests pass, Docker container rebuilt
+
+---
+
+### Previous Feature: Sort Field Expansion (v1) — SUPERSEDED
+
+**Scope:**
+
+1. Add `sort` query parameter to all 4 paginated list APIs (allocations, projects, accounts, employees) - supports field name with optional `-` prefix for descending
+2. Add export endpoints for all 4 entities: `GET /api/v1/{entity}/export?ext=pdf|xls` - supports same filter params as list endpoints, returns file download
+3. Libraries: ClosedXML (XLS), QuestPDF (PDF)
+4. Whitelist sortable fields per entity to prevent arbitrary column access
+
+---
+
+### Previous Feature: Allocation Billable + Simplify /me + GET /allocations + ResourceCount + Date Validation — COMPLETE
 
 **Scope:**
 
@@ -303,3 +390,90 @@
   - `login-reset-password.ftl` — Full rewrite: same brand section and layout as login
   - `favicon.svg` — Updated: solid #5048e5 fill, 44x44 viewBox, matching app icon
   - Temp files cleaned up: stitch-screen.json, stitch-design.html, bg.jpg
+
+---
+
+## Sort Parameter + Export APIs (PDF/XLS) — 2026-03-06
+
+### Wave 1 (parallel — specs + architecture)
+
+#### Dispatch #30: BusinessAnalyst → `project-notes/specs.md`
+
+- **Task:** Add FR-026 (Sort Parameter) and FR-027 (Export APIs) with acceptance criteria
+- **Status:** ✅ COMPLETED (2026-03-06T12:00:00Z)
+- **Results:** specs.md updated — FR-026 (14 ACs), FR-027 (18 ACs), master index updated
+
+#### Dispatch #31: ProductArchitect → `project-notes/architecture.md` + `project-notes/api-spec.yaml` + `project-notes/api-flow.md`
+
+- **Task:** architecture.md §19 (Sort & Export), api-spec.yaml v1.11.0, api-flow.md v1.2.0
+- **Status:** ✅ COMPLETED (2026-03-06T12:00:00Z)
+- **Results:** SortHelper design, IExportService interface, ExportService design, GetFilteredAllAsync, sort field whitelists, export column definitions, data flow diagrams. 4 export endpoints + sort param on api-spec.
+
+### Wave 2 (sequential — TDD red)
+
+#### Dispatch #32: TestEngineer → `tests/**`
+
+- **Task:** Write 21 failing tests (SortHelperTests 7, SortEndpointTests 8, ExportServiceTests 6)
+- **Status:** ✅ COMPLETED (2026-03-06T12:15:00Z)
+- **Results:** 3 test files created. All fail to compile/assert (TDD red phase).
+
+### Wave 3 (sequential — TDD green)
+
+#### Dispatch #33: BackendDeveloper → `src/**`
+
+- **Task:** Implement sort parameter + export infrastructure (SortHelper, IExportService, ExportService, repository changes, controller sort params)
+- **Status:** ✅ COMPLETED (2026-03-06T12:30:00Z)
+- **Results:** 19 files created/modified. SortHelper, IExportService, ExportService (ClosedXML + QuestPDF), 4 repo interfaces + implementations updated, 4 controllers with sort param, DI registration, QuestPDF license.
+
+#### Dispatch #34: BackendDeveloper → `src/PAMS.API/Controllers/**`
+
+- **Task:** Add [HttpGet("export")] endpoints to all 4 controllers
+- **Status:** ✅ COMPLETED (2026-03-06T12:45:00Z)
+- **Results:** Export endpoints on all 4 controllers with role scoping, format validation (xls→xlsx), GetFilteredAllAsync, File() response.
+
+#### Orchestrator fixes:
+
+- Added `<param name="sort">` XML doc tags to 3 controllers (AccountsController, EmployeesController, ProjectsController)
+- Added System.IO.Packaging 9.0.6 override in Directory.Packages.props to fix ClosedXML transitive vulnerability
+- Added System.IO.Packaging PackageReference in PAMS.Infrastructure.csproj
+
+### Wave 4 (parallel — QA + review)
+
+#### Dispatch #35: TestEngineer (QA) → `project-notes/test-report.md`
+
+- **Task:** Validate all tests, update report
+- **Status:** ✅ COMPLETED (2026-03-06T13:00:00Z)
+- **Results:** 231/231 unit tests pass. 7 test gaps documented (#16–#22).
+
+#### Dispatch #36: CodeReviewer → `project-notes/code-review-report.md`
+
+- **Task:** Review all sort + export changes
+- **Status:** ✅ COMPLETED (2026-03-06T13:00:00Z)
+- **Results:** PASS WITH OBSERVATIONS. 0 Critical, 0 High, 4 Medium, 7 Low, 8 Info. No blocking issues.
+
+### Build Verification
+
+- ✅ `dotnet build`: 0 errors, 0 warnings
+- ✅ `dotnet test tests/PAMS.UnitTests`: 231/231 passed
+
+---
+
+## API Spec Alignment (v1.12.0) — 2026-03-05
+
+### Dispatch #37: ProductArchitect (Orchestrator-executed) → `project-notes/api-spec.yaml`
+
+- **Task:** Align api-spec.yaml with implementation — export POST+body, InvalidSort schema, version bump
+- **Status:** ✅ COMPLETED (2026-03-05T12:00:00Z)
+- **Changes:**
+  1. Version bump: 1.11.0 → 1.12.0
+  2. Info description: Export endpoints `GET` → `POST`, added column map + sort validation description
+  3. All 4 export endpoints: `get:` → `post:` with `requestBody` (optional `ExportColumnMap`)
+  4. New schema: `ExportColumnMap` — `additionalProperties: string`, nullable, for column name mapping
+  5. New schema: `InvalidSortProblem` — ProblemDetails + `field` + `allowedFields` extensions
+  6. New response: `InvalidSortError` — 400 with `InvalidSortProblem` schema + example
+  7. Added `"400"` response referencing `InvalidSortError` to all 4 list endpoints
+  8. Updated `SortParam` description: mentions ProblemDetails response with `field`/`allowedFields`
+- **Verification:**
+  - Live Swagger (http://localhost:5000/swagger/v1/swagger.json) confirms all 4 exports are `POST`
+  - Request body correctly shows `{ additionalProperties: string }` for export column map
+  - Query params (search, isActive, accountType, sort, ext) match spec and implementation

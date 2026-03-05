@@ -11,7 +11,11 @@ public interface IProjectRepository
     Task<IReadOnlyList<Project>> GetFilteredAsync(
         string? search, string? accountCode, ProjectStatus? status,
         bool? isActive, bool? billable, string? pmEmpCode,
-        int page, int limit, CancellationToken ct = default);
+        int page, int limit, string? sort, CancellationToken ct = default);
+    Task<IReadOnlyList<Project>> GetFilteredAllAsync(
+        string? search, string? accountCode, ProjectStatus? status,
+        bool? isActive, bool? billable, string? pmEmpCode,
+        string? sort, CancellationToken ct = default);
     Task<int> GetFilteredCountAsync(
         string? search, string? accountCode, ProjectStatus? status,
         bool? isActive, bool? billable, string? pmEmpCode,

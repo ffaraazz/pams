@@ -992,6 +992,124 @@ Delivery is split into two phases:
 
 ---
 
+### FR-026 – Sort Parameter for Paginated APIs
+
+| Field          | Value                                                                                                                                                                                         |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Priority       | P1 (Should Have)                                                                                                                                                                              |
+| Persona        | HR, Project Manager, Staff                                                                                                                                                                    |
+| Description    | All paginated list endpoints accept an optional `sort` query parameter to control result ordering. Format: `sort=fieldName` (ascending) or `sort=-fieldName` (descending, prefixed with `-`). |
+| Trigger        | User supplies `sort` query parameter on a paginated list request.                                                                                                                             |
+| Preconditions  | User is authenticated. The target list endpoint supports pagination (FR-025 / NFR-18).                                                                                                        |
+| Postconditions | Results are returned ordered by the specified field and direction. All other pagination and filter behaviour is unchanged.                                                                    |
+| User Story     | As any authenticated user, I want to sort paginated list results by a chosen field so I can quickly find the records I need.                                                                  |
+
+**Acceptance Criteria:**
+
+_General (applies to all 4 endpoints):_
+
+- AC-026-1: When the `sort` query parameter is omitted, the endpoint uses its default sort order (see per-entity defaults below).
+- AC-026-2: `sort=fieldName` sorts results in **ascending** order by `fieldName`.
+- AC-026-3: `sort=-fieldName` (leading hyphen) sorts results in **descending** order by `fieldName`.
+- AC-026-4: If `sort` specifies a field name not in the allowed list for that entity, the API returns HTTP **400** with a validation error message listing the allowed sort fields.
+- AC-026-5: The `sort` parameter is case-insensitive (e.g., `sort=empCode` and `sort=empcode` are equivalent).
+- AC-026-6: Only a single sort field is supported per request. Multi-field sort (e.g., `sort=field1,-field2`) is not supported and returns HTTP **400**.
+
+_Allocations – `GET /api/v1/allocations`:_
+
+- AC-026-7: Allowed sort fields: `empCode`, `employeeName`, `projectCode`, `projectName`, `percentage`, `fromDate`, `toDate`, `status`, `billable`, `accountCode`, `projectRole`.
+- AC-026-8: Default sort (when `sort` is omitted): `-fromDate` (descending by from-date).
+
+_Projects – `GET /api/v1/projects`:_
+
+- AC-026-9: Allowed sort fields: `projectCode`, `projectName`, `accountCode`, `accountName`, `status`, `startDate`, `endDate`, `isActive`, `billable`, `resourceCount`, `projectManagerName`.
+- AC-026-10: Default sort (when `sort` is omitted): `projectName` (ascending by project name).
+
+_Accounts – `GET /api/v1/accounts`:_
+
+- AC-026-11: Allowed sort fields: `accountCode`, `accountName`, `accountType`, `isActive`, `totalActiveProjects`.
+- AC-026-12: Default sort (when `sort` is omitted): `accountName` (ascending by account name).
+
+_Employees – `GET /api/v1/employees`:_
+
+- AC-026-13: Allowed sort fields: `empCode`, `fullName`, `designation`, `role`, `isActive`, `availabilityPercentage`, `allocationStatus`.
+- AC-026-14: Default sort (when `sort` is omitted): `fullName` (ascending, equivalent to firstName + lastName).
+
+**Negative / Edge Cases:**
+
+- `sort=unknownField` → HTTP 400 with message: `"Invalid sort field 'unknownField'. Allowed fields: …"`.
+- `sort=field1,-field2` (multiple fields) → HTTP 400 with message: `"Only a single sort field is supported."`.
+- `sort=` (empty value) → treated as omitted; default sort applied.
+
+**Data Entities:** Allocation, Project, Account, Employee  
+**Screens:** All paginated list screens, API clients  
+**Dependencies:** FR-025, NFR-18
+
+---
+
+### FR-027 – Export APIs (PDF / XLS)
+
+| Field          | Value                                                                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Priority       | P1 (Should Have)                                                                                                                                                                                        |
+| Persona        | HR, Project Manager, Staff                                                                                                                                                                              |
+| Description    | New export endpoints allow users to download all matching records for each entity as a PDF or Excel (XLSX) file. Exports honour the same filters and role-based scoping as the corresponding list APIs. |
+| Trigger        | User requests an export by calling `GET /api/v1/{entity}/export?ext=pdf` or `GET /api/v1/{entity}/export?ext=xls`.                                                                                      |
+| Preconditions  | User is authenticated. Filters and role-based access rules for the entity apply.                                                                                                                        |
+| Postconditions | A binary file (PDF or XLSX) containing all matching records is returned as a download attachment.                                                                                                       |
+| User Story     | As any authenticated user, I want to export filtered allocation, project, account, or employee data as a PDF or Excel file so I can share or archive it offline.                                        |
+
+**Acceptance Criteria:**
+
+_Endpoint paths:_
+
+- AC-027-1: `GET /api/v1/allocations/export` — export allocations.
+- AC-027-2: `GET /api/v1/projects/export` — export projects.
+- AC-027-3: `GET /api/v1/accounts/export` — export accounts.
+- AC-027-4: `GET /api/v1/employees/export` — export employees.
+
+_`ext` parameter:_
+
+- AC-027-5: The `ext` query parameter is **required**. Accepted values: `pdf`, `xls` (case-insensitive).
+- AC-027-6: If `ext` is missing or has an invalid value, the API returns HTTP **400** with message: `"The 'ext' query parameter is required. Accepted values: pdf, xls."`.
+
+_Filter pass-through:_
+
+- AC-027-7: Each export endpoint accepts the **same filter query parameters** as its corresponding list endpoint (e.g., allocations export accepts `empCode`, `projectCode`, `projectManagerEmpCode`, `status`, `billable`).
+- AC-027-8: Each export endpoint accepts the `sort` query parameter (FR-026) to control record ordering in the exported file.
+- AC-027-9: Export endpoints do **not** accept or honour `page` and `limit` parameters — all matching records are included in the export.
+
+_Role-based scoping:_
+
+- AC-027-10: **Allocations export** applies the same role-based scoping as `GET /api/v1/allocations` (FR-025 AC-025-4): HR sees all; PM sees allocations on projects they manage; Staff sees only their own.
+- AC-027-11: **Projects, Accounts, and Employees exports** require the `CanAllocate` permission (HR and PM roles). Staff users receive HTTP **403**.
+
+_Response headers and content:_
+
+- AC-027-12: For `ext=pdf`, response `Content-Type` is `application/pdf`.
+- AC-027-13: For `ext=xls`, response `Content-Type` is `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+- AC-027-14: Response includes `Content-Disposition: attachment; filename="{entity}-export-{timestamp}.{ext}"` where `{entity}` is `allocations`, `projects`, `accounts`, or `employees`; `{timestamp}` is UTC in `yyyyMMddHHmmss` format; `{ext}` is `pdf` or `xlsx`.
+- AC-027-15: The exported file contains column headers matching the field names returned by the corresponding list endpoint.
+- AC-027-16: Date fields in the export are formatted as `yyyy-MM-dd`.
+- AC-027-17: Boolean fields are rendered as `Yes` / `No` in the export.
+
+_No-data scenario:_
+
+- AC-027-18: If filters result in zero matching records, the export file is still generated with column headers but no data rows (empty report).
+
+**Negative / Edge Cases:**
+
+- Missing `ext` → HTTP 400.
+- `ext=csv` (unsupported format) → HTTP 400.
+- Staff user calling `GET /api/v1/projects/export?ext=pdf` → HTTP 403.
+- Very large result set → server should stream the file to avoid memory pressure (implementation detail, not user-visible).
+
+**Data Entities:** Allocation, Project, Account, Employee  
+**Screens:** All list screens (export button), API clients  
+**Dependencies:** FR-025, FR-026, NFR-18, NFR-21
+
+---
+
 ## 9. Non-Functional Requirements
 
 ### Performance
@@ -1462,3 +1580,5 @@ Delivery is split into two phases:
 | FR-023 | Employee Self-Manage Skills _(MVP2)_                   | P1       | Staff,PM | My Profile → Skills Panel                      | Draft       |
 | FR-024 | ~~My Managed Projects~~ (`/employees/me` profile only) | ~~P0~~   | Staff,PM | My Profile / `/employees/me`                   | **REMOVED** |
 | FR-025 | List Allocations (Paginated)                           | P0       | All      | Allocations List / API                         | Draft       |
+| FR-026 | Sort Parameter for Paginated APIs                      | P1       | All      | All paginated list screens / API               | Draft       |
+| FR-027 | Export APIs (PDF / XLS)                                | P1       | All      | All list screens (export) / API                | Draft       |

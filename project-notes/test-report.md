@@ -12,21 +12,21 @@
 
 | Metric                   | Value         |
 | ------------------------ | ------------- |
-| **Total Tests**          | **266**       |
-| **Unit Tests**           | 207           |
+| **Total Tests**          | **290**       |
+| **Unit Tests**           | 231           |
 | **Integration Tests**    | 59            |
-| **Passed**               | **266**       |
-| **Failed**               | 0             |
+| **Passed**               | **290**       |
+| **Failed / No-Compile**  | 0             |
 | **Skipped**              | 0             |
 | **Build Warnings**       | 0             |
 | **Build Errors**         | 0             |
-| **Unit Test Duration**   | ~310 ms       |
+| **Unit Test Duration**   | ~340 ms       |
 | **Integration Duration** | ~22 s         |
-| **FR Coverage**          | FR-001→FR-020 |
+| **FR Coverage**          | FR-001→FR-027 |
 
 ---
 
-## 1. Unit Tests — 207 Passed
+## 1. Unit Tests — 231 Passed
 
 ### 1.1 Domain Layer (28 tests)
 
@@ -45,7 +45,7 @@
 | CreateEmployeeCommandValidatorTests       | FR-007 | 15    | ✅ All pass |
 | AddProjectTeamMemberCommandValidatorTests | FR-020 | 6     | ✅ All pass |
 
-### 1.3 Application Layer — Command Handlers (136 tests)
+### 1.3 Application Layer — Command Handlers & Features (168 tests)
 
 #### Pre-existing Handlers (50 tests)
 
@@ -87,6 +87,14 @@
 | EmployeeDetailResponseSimplificationTests | FR-009 | 2     | ✅ All pass | EmployeeDetailResponse has no CurrentAllocations property, has no ManagedProjects property    |
 | ProjectResourceCountTests                 | FR-003 | 2     | ✅ All pass | ProjectSummaryResponse has ResourceCount (int), ProjectDetailResponse has ResourceCount (int) |
 | AllocationListEndpointTests               | FR-010 | 2     | ✅ All pass | IAllocationRepository has GetFilteredAsync method, has GetFilteredCountAsync method           |
+
+#### Sort & Export Tests — Phase 8 (21 tests)
+
+| Test File          | FR-ID      | Tests | Status      | Key Scenarios Covered                                                                                            |
+| ------------------ | ---------- | ----- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| SortHelperTests    | FR-026     | 7     | ✅ All pass | Parse null/empty → default, valid asc/desc, case-insensitive match, invalid field → ArgumentException            |
+| SortEndpointTests  | FR-026/027 | 8     | ✅ All pass | 4 repos have `sort` param on GetFilteredAsync, 4 repos have GetFilteredAllAsync method                           |
+| ExportServiceTests | FR-027     | 6     | ✅ All pass | IExportService exists, 4 Generate\*Async methods with correct signatures, ExportResult record has expected props |
 
 ### 1.4 Parameterized Test Breakdown
 
@@ -164,6 +172,8 @@
 | FR-018 | Dashboard Project View       | —          | 3 (HR, PM, Staff 403)                                         | ✅     |
 | FR-019 | Dashboard Employee View      | —          | 3 (HR, PM, Staff 403)                                         | ✅     |
 | FR-020 | Team Lead Validation         | 8 + 6      | — (covered via FR-016)                                        | ✅     |
+| FR-026 | Sort (query param)           | 7 + 4      | —                                                             | ✅     |
+| FR-027 | Export (PDF/XLS)             | 6 + 4      | —                                                             | ✅     |
 
 ---
 
@@ -174,7 +184,10 @@
 ```
 Application/
 ├── AddProjectTeamMemberCommandValidatorTests.cs    (6 tests)
-├── AllocationListEndpointTests.cs                  (2 tests)    ← NEW Phase 7
+├── AllocationListEndpointTests.cs               (2 tests)    ← Phase 7
+├── ExportServiceTests.cs                         (6 tests)    ← Phase 8
+├── SortEndpointTests.cs                          (8 tests)    ← Phase 8
+├── SortHelperTests.cs                            (7 tests)    ← Phase 8
 ├── CreateAccountCommandHandlerTests.cs             (5 tests)
 ├── CreateAllocationCommandHandlerTests.cs          (16 tests)   ← +4 billable (Phase 7)
 ├── CreateAllocationCommandValidatorTests.cs        (11 tests)   ← includes past-date validation
@@ -244,6 +257,13 @@ Helpers/
 | 13  | Allocation Status edges      | No unit test for `ComputeAllocationStatus` returning "Upcoming" (future FromDate) or "Ended" (past ToDate) in isolation                             | Low      |
 | 14  | Null Account fallback        | No test verifying `AllocationDetailResponse.AccountCode`/`AccountName` default to `string.Empty` when `Project.Account` is null                     | Low      |
 | 15  | Empty project lists          | No unit test for `ProjectDetailResponse` with zero allocations and zero team members (empty list edge case)                                         | Low      |
+| 16  | Export integration tests     | No integration tests for `GET /api/v1/{resource}/export?format=xlsx` or `format=pdf` endpoints                                                      | High     |
+| 17  | ExportService implementation | No unit tests verifying `ExportService` generates actual XLS (ClosedXML) and PDF (QuestPDF) byte arrays with correct content                        | High     |
+| 18  | Sort integration tests       | No integration tests for `?sort=fieldName` / `?sort=-fieldName` on list endpoints verifying response order                                          | Medium   |
+| 19  | Sort edge cases              | No test for sort combined with pagination (sort + page + limit) or sort combined with filters                                                       | Medium   |
+| 20  | Export auth                  | No integration test verifying export endpoint authorization (HR/PM allowed, Staff 403)                                                              | Medium   |
+| 21  | Export empty dataset         | No test for export when filter returns zero rows — should produce valid empty file or 204                                                           | Low      |
+| 22  | Export large dataset         | No performance/stress test for export with large row counts                                                                                         | Low      |
 
 ---
 
@@ -322,9 +342,58 @@ Helpers/
 
 ---
 
-## 8. Conclusion
+## 8. Phase 8 — Sort & Export Validation (FR-026, FR-027)
 
-The PAMS backend is covered by **266 executable tests** (207 unit + 59 integration) with **100% pass rate** and **zero compile errors**. All 15 command handlers have dedicated unit tests. All 8 controllers have integration tests exercising CRUD operations and authorization policies across HR, PM, and Staff roles. The integration suite uses Testcontainers for a disposable PostgreSQL instance, ensuring tests are isolated and repeatable without external dependencies.
+### 8.1 Test Files
+
+| Test File               | Tests  | Status          | Purpose                                                                                 |
+| ----------------------- | ------ | --------------- | --------------------------------------------------------------------------------------- |
+| `SortHelperTests.cs`    | 7      | ✅ All pass     | `SortHelper.Parse()` handles null/empty/valid/invalid sort strings                      |
+| `SortEndpointTests.cs`  | 8      | ✅ All pass     | 4 repo interfaces have `sort` param on `GetFilteredAsync`; 4 have `GetFilteredAllAsync` |
+| `ExportServiceTests.cs` | 6      | ✅ All pass     | `IExportService` interface + `ExportResult` record shape verified                       |
+| **Total**               | **21** | **✅ All pass** | Production code implemented — all tests green                                           |
+
+### 8.2 SortHelperTests (7 tests)
+
+| Test                                         | Expected Behaviour                                              |
+| -------------------------------------------- | --------------------------------------------------------------- |
+| `Parse_NullInput_ReturnsDefault`             | null sort → returns (defaultField, defaultDescending)           |
+| `Parse_EmptyInput_ReturnsDefault`            | empty string → returns default                                  |
+| `Parse_ValidAscending_ReturnsFieldAndFalse`  | "projectName" → ("ProjectName", false)                          |
+| `Parse_ValidDescending_ReturnsFieldAndTrue`  | "-fromDate" → ("FromDate", true)                                |
+| `Parse_CaseInsensitive_MatchesField`         | "PROJECTNAME" → ("ProjectName", false)                          |
+| `Parse_InvalidField_ThrowsArgumentException` | "invalidField" → ArgumentException with valid fields in message |
+| `Parse_DashOnly_ThrowsArgumentException`     | "-" → ArgumentException                                         |
+
+### 8.3 SortEndpointTests (8 tests)
+
+| Test                                                         | Target Interface        | Assertion                                     |
+| ------------------------------------------------------------ | ----------------------- | --------------------------------------------- |
+| `IAllocationRepository_GetFilteredAsync_ShouldHaveSortParam` | `IAllocationRepository` | `sort` string parameter on `GetFilteredAsync` |
+| `IProjectRepository_GetFilteredAsync_ShouldHaveSortParam`    | `IProjectRepository`    | `sort` string parameter on `GetFilteredAsync` |
+| `IAccountRepository_GetFilteredAsync_ShouldHaveSortParam`    | `IAccountRepository`    | `sort` string parameter on `GetFilteredAsync` |
+| `IEmployeeRepository_GetFilteredAsync_ShouldHaveSortParam`   | `IEmployeeRepository`   | `sort` string parameter on `GetFilteredAsync` |
+| `IAllocationRepository_ShouldHaveGetFilteredAllAsyncMethod`  | `IAllocationRepository` | `GetFilteredAllAsync` method exists           |
+| `IProjectRepository_ShouldHaveGetFilteredAllAsyncMethod`     | `IProjectRepository`    | `GetFilteredAllAsync` method exists           |
+| `IAccountRepository_ShouldHaveGetFilteredAllAsyncMethod`     | `IAccountRepository`    | `GetFilteredAllAsync` method exists           |
+| `IEmployeeRepository_ShouldHaveGetFilteredAllAsyncMethod`    | `IEmployeeRepository`   | `GetFilteredAllAsync` method exists           |
+
+### 8.4 ExportServiceTests (6 tests)
+
+| Test                                                | Assertion                                                                          |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `IExportService_ShouldExist`                        | `typeof(IExportService)` resolves                                                  |
+| `IExportService_ShouldHaveGenerateAllocationsAsync` | Method with `(IReadOnlyList<AllocationDetailResponse>, string, CancellationToken)` |
+| `IExportService_ShouldHaveGenerateProjectsAsync`    | Method with `(IReadOnlyList<ProjectSummaryResponse>, string, CancellationToken)`   |
+| `IExportService_ShouldHaveGenerateAccountsAsync`    | Method with `(IReadOnlyList<AccountSummaryResponse>, string, CancellationToken)`   |
+| `IExportService_ShouldHaveGenerateEmployeesAsync`   | Method with `(IReadOnlyList<EmployeeSummaryResponse>, string, CancellationToken)`  |
+| `ExportResult_ShouldHaveExpectedProperties`         | `FileBytes` (byte[]), `ContentType` (string), `FileName` (string)                  |
+
+---
+
+## 9. Conclusion
+
+The PAMS backend now has **290 total tests** (231 unit + 59 integration) with a **100% pass rate** — zero failures, zero skipped. All 15 command handlers have dedicated unit tests. All 8 controllers have integration tests exercising CRUD operations and authorization policies across HR, PM, and Staff roles. The integration suite uses Testcontainers for a disposable PostgreSQL instance, ensuring tests are isolated and repeatable without external dependencies.
 
 **Phase 6 enrichment** added 5 unit tests across 2 files for `AllocationDetailResponse` properties and `ProjectDetailResponse` collections. The `DashboardController` is marked `[Obsolete]` with a deprecation path toward the enriched endpoints.
 
@@ -338,4 +407,9 @@ The PAMS backend is covered by **266 executable tests** (207 unit + 59 integrati
 - **DemoDataSeeder**: All 12 seed allocations have explicit `Billable = true/false` values.
 - **ManagedProjectItem.cs**: Reduced to tombstone comment; original DTO class removed.
 
-**Key gaps remaining** (6 medium priority): No dedicated test for `UpdateAllocationCommand.Billable` conditional update, no `Billable=false` scenario test, no integration test for `GET /allocations`, no filter-specific tests for billable/status query params, no ResourceCount computation logic test, no pagination integration tests. All are recommended for a subsequent test hardening pass.
+**Phase 8 (Sort & Export)** promoted 21 TDD red-phase tests to green after production code implementation:
+
+- **Sort (FR-026)**: `SortHelper.Parse()` utility implemented in `PAMS.Application.Helpers`. 7 unit tests verify null/empty → default, ascending/descending parsing, case-insensitive field matching, and `ArgumentException` on invalid fields. 4 reflection tests confirm all 4 repository interfaces (`IAllocationRepository`, `IProjectRepository`, `IAccountRepository`, `IEmployeeRepository`) accept a `string? sort` parameter on `GetFilteredAsync`.
+- **Export (FR-027)**: `IExportService` interface + `ExportResult` record defined in `PAMS.Application.Interfaces`. `ExportService` implementation uses ClosedXML for XLS and QuestPDF for PDF generation. 6 unit tests verify interface shape, method signatures (`GenerateAllocationsAsync`, `GenerateProjectsAsync`, `GenerateAccountsAsync`, `GenerateEmployeesAsync`), and `ExportResult` properties (`FileBytes`, `ContentType`, `FileName`). 4 reflection tests confirm all 4 repository interfaces expose `GetFilteredAllAsync` for unpaginated export queries.
+
+**Key gaps remaining** (8 high/medium priority): No integration tests for export endpoints (High), no unit tests for `ExportService` actual file generation (High), no integration tests for sort query param ordering (Medium), no sort + pagination/filter combined tests (Medium), no export authorization tests (Medium), no `Billable=false` scenario test (Medium), no `GET /allocations` integration test (Medium), no ResourceCount computation logic test (Medium). All are recommended for a subsequent test hardening pass.

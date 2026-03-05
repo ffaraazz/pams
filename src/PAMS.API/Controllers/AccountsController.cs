@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using PAMS.Application.Commands.Accounts;
 using PAMS.Application.DTOs.Accounts;
 using PAMS.Application.DTOs.Common;
+using PAMS.Application.Interfaces;
 using PAMS.Domain.Enums;
 using PAMS.Domain.Repositories;
 
@@ -21,11 +22,13 @@ public sealed class AccountsController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IAccountRepository _accountRepo;
+    private readonly IExportService _exportService;
 
-    public AccountsController(IMediator mediator, IAccountRepository accountRepo)
+    public AccountsController(IMediator mediator, IAccountRepository accountRepo, IExportService exportService)
     {
         _mediator = mediator;
         _accountRepo = accountRepo;
+        _exportService = exportService;
     }
 
     /// <summary>
@@ -40,6 +43,7 @@ public sealed class AccountsController : ControllerBase
     /// <param name="accountType">Filter by account type (Client, Internal, Bench).</param>
     /// <param name="page">Page number (default: 1).</param>
     /// <param name="limit">Items per page (default: 10, max: 100).</param>
+    /// <param name="sort">Sort field. Prefix with - for descending (e.g. -accountName).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Paginated list of account summaries.</returns>
     [HttpGet]
@@ -53,12 +57,13 @@ public sealed class AccountsController : ControllerBase
         [FromQuery] AccountType? accountType,
         [FromQuery] int page = 1,
         [FromQuery] int limit = 10,
+        [FromQuery] string? sort = null,
         CancellationToken ct = default)
     {
         limit = Math.Clamp(limit, 1, 100);
         page = Math.Max(page, 1);
 
-        var accounts = await _accountRepo.GetFilteredAsync(search, isActive, accountType, page, limit, ct);
+        var accounts = await _accountRepo.GetFilteredAsync(search, isActive, accountType, page, limit, sort, ct);
         var totalRecords = await _accountRepo.GetFilteredCountAsync(search, isActive, accountType, ct);
 
         var data = accounts.Select(a => new AccountSummaryResponse
@@ -77,6 +82,71 @@ public sealed class AccountsController : ControllerBase
             Data = data,
             Pagination = PaginationMeta.Create(page, limit, totalRecords)
         });
+    }
+
+    /// <summary>
+    /// Export accounts as PDF or Excel.
+    /// </summary>
+    /// <remarks>
+    /// Returns all matching accounts (no pagination) as a downloadable file.
+    /// Accepts the same filter and sort parameters as the list endpoint.
+    /// An optional JSON body may contain a column name map where keys are field names
+    /// and values are display labels. Only mapped columns appear in the export.
+    /// If no body is sent, all default columns are included.
+    /// </remarks>
+    /// <param name="search">Search by account code or name (partial match, case-insensitive).</param>
+    /// <param name="isActive">Filter by active status. Omit to return all.</param>
+    /// <param name="accountType">Filter by account type (Client, Internal, Bench).</param>
+    /// <param name="sort">Sort field. Prefix with - for descending (e.g. -accountName).</param>
+    /// <param name="ext">Export format: pdf or xls.</param>
+    /// <param name="columns">Optional column name map. Keys = field names, values = display labels.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>File download (PDF or Excel).</returns>
+    /// <response code="200">File download.</response>
+    /// <response code="400">Invalid export format or invalid sort field.</response>
+    /// <response code="401">Missing or invalid authentication token.</response>
+    /// <response code="403">Insufficient permissions.</response>
+    [HttpPost("export")]
+    [Authorize(Policy = "CanAllocate")]
+    [Produces("application/pdf", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Export(
+        [FromQuery] string? search,
+        [FromQuery] bool? isActive,
+        [FromQuery] AccountType? accountType,
+        [FromQuery] string? sort,
+        [FromQuery] string ext,
+        [FromBody] Dictionary<string, string>? columns = null,
+        CancellationToken ct = default)
+    {
+        var format = ext?.ToLowerInvariant();
+        if (format != "pdf" && format != "xls")
+            return Problem(
+                detail: "ext must be 'pdf' or 'xls'.",
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Bad Request",
+                type: "https://pams.internal/errors/ERR_VALIDATION");
+
+        var accounts = await _accountRepo.GetFilteredAllAsync(search, isActive, accountType, sort, ct);
+
+        var data = accounts.Select(a => new AccountSummaryResponse
+        {
+            AccountId = a.Id,
+            AccountCode = a.AccountCode,
+            AccountName = a.AccountName,
+            AccountType = a.AccountType,
+            IsActive = a.IsActive,
+            TotalActiveProjects = a.Projects.Count(p => p.IsActive),
+            TotalInactiveProjects = a.Projects.Count(p => !p.IsActive)
+        }).ToList();
+
+        var result = await _exportService.GenerateAccountsAsync(
+            data, format == "xls" ? "xlsx" : format, columns, ct);
+
+        return File(result.FileBytes, result.ContentType, result.FileName);
     }
 
     /// <summary>

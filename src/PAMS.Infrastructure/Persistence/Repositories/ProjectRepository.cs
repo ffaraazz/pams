@@ -1,4 +1,7 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using PAMS.Application.Exceptions;
+using PAMS.Application.Helpers;
 using PAMS.Domain.Entities;
 using PAMS.Domain.Enums;
 using PAMS.Domain.Repositories;
@@ -39,13 +42,27 @@ public sealed class ProjectRepository : IProjectRepository
     public async Task<IReadOnlyList<Project>> GetFilteredAsync(
         string? search, string? accountCode, ProjectStatus? status,
         bool? isActive, bool? billable, string? pmEmpCode,
-        int page, int limit, CancellationToken ct = default)
+        int page, int limit, string? sort, CancellationToken ct = default)
     {
         var query = BuildFilteredQuery(search, accountCode, status, isActive, billable, pmEmpCode);
+        query = ApplySort(query, sort);
         return await query
-            .OrderBy(p => p.ProjectName)
             .Skip((page - 1) * limit)
             .Take(limit)
+            .Include(p => p.Account)
+            .Include(p => p.ProjectManager)
+            .Include(p => p.Allocations)
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Project>> GetFilteredAllAsync(
+        string? search, string? accountCode, ProjectStatus? status,
+        bool? isActive, bool? billable, string? pmEmpCode,
+        string? sort, CancellationToken ct = default)
+    {
+        var query = BuildFilteredQuery(search, accountCode, status, isActive, billable, pmEmpCode);
+        query = ApplySort(query, sort);
+        return await query
             .Include(p => p.Account)
             .Include(p => p.ProjectManager)
             .Include(p => p.Allocations)
@@ -98,5 +115,36 @@ public sealed class ProjectRepository : IProjectRepository
         }
 
         return query;
+    }
+
+    private static readonly Dictionary<string, Expression<Func<Project, object>>> SortFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["projectName"] = p => p.ProjectName,
+        ["projectCode"] = p => p.ProjectCode,
+        ["startDate"] = p => p.StartDate,
+        ["endDate"] = p => p.EndDate!,
+        ["status"] = p => p.Status,
+        ["billable"] = p => p.Billable,
+        ["isActive"] = p => p.IsActive,
+        ["createdAt"] = p => p.CreatedAt,
+        ["updatedAt"] = p => p.UpdatedAt,
+        ["accountCode"] = p => p.Account.AccountCode,
+        ["accountName"] = p => p.Account.AccountName,
+        ["projectManagerName"] = p => p.ProjectManager!.FirstName,
+        ["projectManagerEmpCode"] = p => p.ProjectManager!.EmpCode,
+    };
+
+    private static IQueryable<Project> ApplySort(IQueryable<Project> query, string? sort)
+    {
+        if (string.IsNullOrWhiteSpace(sort))
+            return query.OrderBy(p => p.ProjectName);
+
+        var isDescending = sort.StartsWith('-');
+        var field = isDescending ? sort[1..] : sort;
+
+        if (SortFields.TryGetValue(field, out var keySelector))
+            return isDescending ? query.OrderByDescending(keySelector) : query.OrderBy(keySelector);
+
+        throw new InvalidSortException(field, SortFields.Keys);
     }
 }

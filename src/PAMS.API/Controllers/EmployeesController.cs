@@ -24,17 +24,20 @@ public sealed class EmployeesController : ControllerBase
     private readonly IEmployeeRepository _employeeRepo;
     private readonly IAllocationRepository _allocationRepo;
     private readonly ICurrentUserService _currentUser;
+    private readonly IExportService _exportService;
 
     public EmployeesController(
         IMediator mediator,
         IEmployeeRepository employeeRepo,
         IAllocationRepository allocationRepo,
-        ICurrentUserService currentUser)
+        ICurrentUserService currentUser,
+        IExportService exportService)
     {
         _mediator = mediator;
         _employeeRepo = employeeRepo;
         _allocationRepo = allocationRepo;
         _currentUser = currentUser;
+        _exportService = exportService;
     }
 
     /// <summary>
@@ -53,6 +56,7 @@ public sealed class EmployeesController : ControllerBase
     /// <param name="windowTo">End of availability window (default: today).</param>
     /// <param name="page">Page number (default: 1).</param>
     /// <param name="limit">Items per page (default: 10, max: 100).</param>
+    /// <param name="sort">Sort field. Prefix with - for descending (e.g. -fullName).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Paginated list of employee summaries with availability.</returns>
     [HttpGet]
@@ -69,6 +73,7 @@ public sealed class EmployeesController : ControllerBase
         [FromQuery] DateOnly? windowTo = null,
         [FromQuery] int page = 1,
         [FromQuery] int limit = 10,
+        [FromQuery] string? sort = null,
         CancellationToken ct = default)
     {
         limit = Math.Clamp(limit, 1, 100);
@@ -76,7 +81,7 @@ public sealed class EmployeesController : ControllerBase
 
         var roleStr = role?.ToString();
         var employees = await _employeeRepo.GetFilteredAsync(
-            search, null, benchOnly, roleStr, isActive, windowFrom, windowTo, page, limit, ct);
+            search, null, benchOnly, roleStr, isActive, windowFrom, windowTo, page, limit, sort, ct);
         var totalRecords = await _employeeRepo.GetFilteredCountAsync(
             search, null, benchOnly, roleStr, isActive, windowFrom, windowTo, ct);
 
@@ -110,6 +115,93 @@ public sealed class EmployeesController : ControllerBase
             Data = data,
             Pagination = PaginationMeta.Create(page, limit, totalRecords)
         });
+    }
+
+    /// <summary>
+    /// Export employees as PDF or Excel.
+    /// </summary>
+    /// <remarks>
+    /// Returns all matching employees (no pagination) as a downloadable file.
+    /// Accepts the same filter and sort parameters as the list endpoint.
+    /// An optional JSON body may contain a column name map where keys are field names
+    /// and values are display labels. Only mapped columns appear in the export.
+    /// If no body is sent, all default columns are included.
+    /// </remarks>
+    /// <param name="search">Search by employee code, name, or email (partial match, min 2 chars).</param>
+    /// <param name="role">Filter by role (HR, ProjectManager, Staff).</param>
+    /// <param name="isActive">Filter by active status. Omit to return all.</param>
+    /// <param name="benchOnly">If true, return only employees with 0% allocation.</param>
+    /// <param name="windowFrom">Start of availability window (default: today).</param>
+    /// <param name="windowTo">End of availability window (default: today).</param>
+    /// <param name="sort">Sort field. Prefix with - for descending (e.g. -fullName).</param>
+    /// <param name="ext">Export format: pdf or xls (default: xls).</param>
+    /// <param name="columns">Optional column name map. Keys = field names, values = display labels.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>File download (PDF or Excel).</returns>
+    /// <response code="200">File download.</response>
+    /// <response code="400">Invalid export format or invalid sort field.</response>
+    /// <response code="401">Missing or invalid authentication token.</response>
+    /// <response code="403">Insufficient permissions.</response>
+    [HttpPost("export")]
+    [Authorize(Policy = "CanAllocate")]
+    [Produces("application/pdf", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Export(
+        [FromQuery] string? search,
+        [FromQuery] EmployeeRole? role,
+        [FromQuery] bool? isActive,
+        [FromQuery] bool benchOnly = false,
+        [FromQuery] DateOnly? windowFrom = null,
+        [FromQuery] DateOnly? windowTo = null,
+        [FromQuery] string? sort = null,
+        [FromQuery] string ext = "xls",
+        [FromBody] Dictionary<string, string>? columns = null,
+        CancellationToken ct = default)
+    {
+        var format = ext?.ToLowerInvariant();
+        if (format != "pdf" && format != "xls")
+            return Problem(
+                detail: "ext must be 'pdf' or 'xls'.",
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Bad Request",
+                type: "https://pams.internal/errors/ERR_VALIDATION");
+
+        var roleStr = role?.ToString();
+        var employees = await _employeeRepo.GetFilteredAllAsync(
+            search, null, benchOnly, roleStr, isActive, windowFrom, windowTo, sort, ct);
+
+        var data = employees.Select(e =>
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var activeAllocations = e.Allocations
+                .Where(a => a.DeletedAt == null && a.FromDate <= today && (a.ToDate == null || a.ToDate >= today))
+                .ToList();
+            var totalPct = activeAllocations.Sum(a => a.Percentage);
+            var availability = Math.Max(0, 100 - totalPct);
+
+            return new EmployeeSummaryResponse
+            {
+                EmployeeId = e.Id,
+                EmpCode = e.EmpCode,
+                FullName = $"{e.FirstName} {e.LastName}",
+                Designation = e.Designation,
+                Role = e.Role,
+                IsActive = e.IsActive,
+                AvailabilityPercentage = availability,
+                AllocationStatus = totalPct == 0 ? AllocationStatus.Bench
+                    : totalPct >= 100 ? AllocationStatus.Full
+                    : AllocationStatus.Partial,
+                Skills = e.EmployeeSkills.Select(es => es.Skill?.SkillName ?? string.Empty).ToList()
+            };
+        }).ToList();
+
+        var result = await _exportService.GenerateEmployeesAsync(
+            data, format == "xls" ? "xlsx" : format, columns, ct);
+
+        return File(result.FileBytes, result.ContentType, result.FileName);
     }
 
     /// <summary>
