@@ -359,6 +359,16 @@ public static class DemoDataSeeder
                 FromDate = new(2025, 4, 1), ToDate = new(2025, 10, 31), Percentage = 25,
                 ProjectRole = "Project Manager", Billable = true,
                 AllocatedById = emp001.Id, CreatedAt = now, UpdatedAt = now },
+            // 25% Teams Integration (completed) — PM oversight
+            new() { Id = Guid.NewGuid(), EmployeeId = emp002.Id, ProjectId = prjTeamsInt.Id,
+                FromDate = new(2025, 6, 1), ToDate = new(2025, 12, 31), Percentage = 25,
+                ProjectRole = "Project Manager", Billable = true,
+                AllocatedById = emp001.Id, CreatedAt = now, UpdatedAt = now },
+            // 25% E-Commerce Platform (completed, inactive) — soft-deleted PM allocation
+            new() { Id = Guid.NewGuid(), EmployeeId = emp002.Id, ProjectId = prjEcom.Id,
+                FromDate = new(2024, 6, 1), ToDate = new(2025, 3, 31), Percentage = 25,
+                ProjectRole = "Project Manager", Billable = false,
+                AllocatedById = emp001.Id, CreatedAt = now, UpdatedAt = now, DeletedAt = now },
 
             // ── Rachel Martinez (EMP-009, PM) — allocated to her own projects ──
             // 25% GCP App Modernization (active, ends Mar 2026)
