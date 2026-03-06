@@ -477,3 +477,20 @@ Content-Type: application/json
   - Live Swagger (http://localhost:5000/swagger/v1/swagger.json) confirms all 4 exports are `POST`
   - Request body correctly shows `{ additionalProperties: string }` for export column map
   - Query params (search, isActive, accountType, sort, ext) match spec and implementation
+
+---
+
+## Bug Fix: Stop-Then-Delete Allocation — 2026-03-06
+
+### Dispatch #38: Orchestrator (direct fix) → `src/**` + `tests/**`
+
+- **Task:** Fix bug where stopping an allocation then immediately deleting it still failed with "stop the allocation first"
+- **Status:** ✅ COMPLETED (2026-03-06T14:00:00Z)
+- **Root Cause:** `AllocationStopService.ComputeStopDate` returned `today + 1` for active allocations. `RemoveAllocationCommandHandler` required `ToDate < today`. These were mutually exclusive — deleting on the stop day was impossible.
+- **Changes:**
+  - `src/PAMS.Domain/Services/AllocationStopService.cs` — Active allocations now return `today` (not `today + 1`). Semantics unchanged: allocation ends today (inclusive), employee is free from tomorrow.
+  - `src/PAMS.Application/Commands/Allocations/RemoveAllocation/RemoveAllocationCommandHandler.cs` — Guard changed from `ToDate >= today` → `ToDate > today`. Deletion allowed when allocation ended today or earlier.
+  - `tests/PAMS.UnitTests/Domain/AllocationStopServiceTests.cs` — Updated 2 test expectations from `tomorrow` → `today` for started allocations.
+- **Verification:** 231/231 unit tests pass. Docker rebuilt and deployed.
+
+### Pipeline State: `DEV_VERIFIED_ALL_TESTS_PASS`

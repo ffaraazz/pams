@@ -3,7 +3,7 @@ namespace PAMS.Domain.Services;
 /// <summary>
 /// Stop-date computation rule (FR-013). Pure function; no I/O.
 /// If allocation.fromDate > today → stopDate = today (cancel before start)
-/// Else                           → stopDate = today + 1 day (release from tomorrow)
+/// Else                           → stopDate = today (allocation ends today; employee is free from tomorrow)
 /// </summary>
 public sealed class AllocationStopService
 {
@@ -21,7 +21,7 @@ public sealed class AllocationStopService
             return today;
         }
 
-        // Allocation has started (fromDate <= today) — release from tomorrow
-        return today.AddDays(1);
+        // Allocation has started (fromDate <= today) — ends today, employee free from tomorrow
+        return today;
     }
 }

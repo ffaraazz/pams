@@ -54,9 +54,9 @@ public sealed class RemoveAllocationCommandHandler : IRequestHandler<RemoveAlloc
                 "ERR_NOT_PROJECT_OWNER");
         }
 
-        // 4. Verify allocation has ended (toDate < today)
+        // 4. Verify allocation has ended (toDate <= today)
         var today = DateOnly.FromDateTime(DateTime.Today);
-        if (!allocation.ToDate.HasValue || allocation.ToDate.Value >= today)
+        if (!allocation.ToDate.HasValue || allocation.ToDate.Value > today)
         {
             throw new DomainException(
                 "Only ended allocations can be removed. Stop the allocation first.",

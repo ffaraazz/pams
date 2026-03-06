@@ -31,8 +31,8 @@ public sealed class AllocationStopServiceTests
 
     // ─── FR-013 / AC-013-2: fromDate <= today and toDate NULL or > tomorrow → tomorrow ─
 
-    [Fact(DisplayName = "FR-013 | ComputeStopDate_WhenAllocationAlreadyStarted_ShouldReturnTomorrow")]
-    public void ComputeStopDate_WhenAllocationAlreadyStarted_ShouldReturnTomorrow()
+    [Fact(DisplayName = "FR-013 | ComputeStopDate_WhenAllocationAlreadyStarted_ShouldReturnToday")]
+    public void ComputeStopDate_WhenAllocationAlreadyStarted_ShouldReturnToday()
     {
         // Arrange — allocation already started (fromDate in the past or today)
         var sut = new PAMS.Domain.Services.AllocationStopService();
@@ -42,12 +42,12 @@ public sealed class AllocationStopServiceTests
         // Act
         var stopDate = sut.ComputeStopDate(pastFromDate, today);
 
-        // Assert — release from tomorrow
-        stopDate.Should().Be(today.AddDays(1));
+        // Assert — ends today; employee free from tomorrow
+        stopDate.Should().Be(today);
     }
 
-    [Fact(DisplayName = "FR-013 | ComputeStopDate_WhenStartedToday_ShouldReturnTomorrow")]
-    public void ComputeStopDate_WhenStartedToday_ShouldReturnTomorrow()
+    [Fact(DisplayName = "FR-013 | ComputeStopDate_WhenStartedToday_ShouldReturnToday")]
+    public void ComputeStopDate_WhenStartedToday_ShouldReturnToday()
     {
         // Arrange — allocation starts today (fromDate == today)
         var sut = new PAMS.Domain.Services.AllocationStopService();
@@ -56,8 +56,8 @@ public sealed class AllocationStopServiceTests
         // Act
         var stopDate = sut.ComputeStopDate(today, today);
 
-        // Assert — started today → release from tomorrow
-        stopDate.Should().Be(today.AddDays(1));
+        // Assert — started today → ends today; employee free from tomorrow
+        stopDate.Should().Be(today);
     }
 
     // ─── FR-013 / Edge: fromDate is far in the future ─────────────────────────
